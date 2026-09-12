@@ -1,0 +1,10 @@
+[package]
+name = "myllm-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Shared library for My LLM tasks, translation, and providers"
+
+[dependencies]

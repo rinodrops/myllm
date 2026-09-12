@@ -1,0 +1,10 @@
+[workspace]
+members = ["crates/myllm-core", "crates/myllm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/rinodrops/myllm"
+authors = ["Rino, eMotionGraphics Inc."]

@@ -1,0 +1,200 @@
+# Settings schema for My LLM. Embedded when building the Settings binary.
+
+icon_style = "rounded"
+theme = "os"
+lang = "os"
+save_button = "os"
+content_width = 640
+content_height = 400
+
+[[tabs]]
+id = "general"
+label = { en = "General", ja = "一般" }
+icon = "settings"
+
+[[tabs.fields]]
+key = "general.appearance"
+label = { en = "Appearance", ja = "外観" }
+type = "string"
+widget = "segmented_control"
+options = ["dark", "light", "system"]
+max_width = 300
+
+[[tabs.fields]]
+key = "general.default_provider"
+label = { en = "Default provider", ja = "デフォルトプロバイダ" }
+type = "string"
+widget = "segmented_control"
+options_from = "providers"
+max_width = 300
+
+[[tabs.fields]]
+key = "general.auto_copy"
+label = ""
+type = "bool"
+widget = "checkbox"
+sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする" }
+
+[[tabs.fields]]
+key = "general.keep_alive"
+label = { en = "Keep-alive", ja = "keep-alive" }
+type = "string"
+widget = "text_input"
+max_width = 100
+hint = { en = "How long to keep the Ollama model loaded (e.g. 5m, 30s, 1h)", ja = "モデルをメモリ上に維持する時間（例: 5m, 30s, 1h）" }
+
+[[tabs]]
+id = "providers"
+label = { en = "Providers", ja = "プロバイダ" }
+icon = "cloud"
+
+[tabs.section_map]
+key_prefix = "providers"
+allow_add_remove = true
+tab_style = "underline"
+max_width = 360
+
+[[tabs.section_map.fields]]
+key = "base_url"
+label = { en = "Base URL", ja = "ベース URL" }
+type = "string"
+widget = "text_input"
+
+[[tabs.section_map.fields]]
+key = "default_model"
+label = { en = "Default model", ja = "デフォルトモデル" }
+type = "string"
+widget = "text_input"
+
+[[tabs.section_map.fields]]
+key = "api_key"
+label = { en = "API key", ja = "API キー" }
+type = "string"
+widget = "exclusive_radio"
+hint_direct = { en = "Stored in the config file in plain text.", ja = "設定ファイルに平文で保存されます。" }
+hint_env = { en = "Read from this environment variable at launch. Must start with MYLLM_.", ja = "起動時にこの環境変数から読み込みます。MYLLM_ で始めてください。" }
+
+[tabs.section_map.fields.exclusive]
+mode_key = "api_key_mode"
+mode_default = "direct"
+variants = [
+  { value = "direct", label = { en = "Direct", ja = "直接入力" }, field_key = "api_key", widget = "secret_input" },
+  { value = "env", label = { en = "Environment", ja = "環境変数" }, field_key = "api_key_env", widget = "text_input" },
+]
+
+[[tabs]]
+id = "tasks"
+label = { en = "Tasks", ja = "タスク" }
+icon = "checklist"
+
+[tabs.section_map]
+key_prefix = "tasks"
+allow_add_remove = true
+
+[[tabs.section_map.fields]]
+key = "name"
+label = { en = "Name", ja = "タスク名" }
+type = "string"
+widget = "text_input"
+
+[[tabs.section_map.fields]]
+key = "hotkey"
+label = { en = "Hotkey", ja = "ホットキー" }
+type = "string"
+widget = "hotkey"
+
+[[tabs.section_map.fields]]
+key = "provider"
+label = { en = "Provider", ja = "プロバイダ" }
+type = "string"
+widget = "segmented_control"
+options_from = "providers"
+max_width = 300
+
+[[tabs.section_map.fields]]
+key = "model"
+label = { en = "Model", ja = "モデル" }
+type = "string"
+widget = "text_input"
+hint = { en = "Leave empty to use the provider default_model", ja = "空ならプロバイダの default_model を使う" }
+
+[[tabs.section_map.fields]]
+key = "auto_copy"
+label = ""
+type = "bool"
+widget = "checkbox"
+sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする" }
+
+[[tabs.section_map.fields]]
+key = "instruction"
+label = { en = "Instruction", ja = "指示文" }
+type = "string"
+widget = "multiline"
+rows = 6
+
+[[tabs]]
+id = "translation"
+label = { en = "Translation", ja = "翻訳" }
+icon = "translate"
+
+[[tabs.fields]]
+key = "translation.enabled"
+label = { en = "Enable translation", ja = "翻訳機能を有効にする" }
+type = "bool"
+widget = "toggle"
+
+[[tabs.fields]]
+key = "translation.engine"
+label = { en = "Engine", ja = "エンジン" }
+type = "string"
+widget = "segmented_control"
+options = ["translategemma", "custom"]
+max_width = 360
+
+[[tabs.fields]]
+key = "translation.provider"
+label = { en = "Provider", ja = "プロバイダ" }
+type = "string"
+widget = "segmented_control"
+options_from = "providers"
+
+[[tabs.fields]]
+key = "translation.model"
+label = { en = "Model", ja = "モデル" }
+type = "string"
+widget = "text_input"
+
+[[tabs.fields]]
+key = "translation.hotkey"
+label = { en = "Hotkey", ja = "ホットキー" }
+type = "string"
+widget = "hotkey"
+
+[[tabs.fields]]
+key = "translation.default_source"
+label = { en = "Default source", ja = "デフォルトソース言語" }
+type = "string"
+widget = "select"
+options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
+
+[[tabs.fields]]
+key = "translation.default_target"
+label = { en = "Default target", ja = "デフォルトターゲット言語" }
+type = "string"
+widget = "select"
+options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
+
+[[tabs.fields]]
+key = "translation.fallback_target"
+label = { en = "Fallback target", ja = "フォールバック言語" }
+type = "string"
+widget = "select"
+options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
+
+[[tabs.fields]]
+key = "translation.instruction"
+label = { en = "Custom instruction", ja = "カスタム指示文" }
+type = "string"
+widget = "multiline"
+rows = 6
+hint = { en = "Used when engine is custom. Variables: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ja = "engine が custom のとき使う。変数: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}" }

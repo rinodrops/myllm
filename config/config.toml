@@ -1,0 +1,113 @@
+# myllm configuration file
+# Created automatically on first run. Edit to configure your providers and tasks.
+# Location: ~/.config/myllm/config.toml
+
+# ---------------------------------------------------------------------------
+# General
+# ---------------------------------------------------------------------------
+
+[general]
+default_provider = "ollama"    # Provider to use when not specified per task
+auto_copy = true               # Automatically copy result to clipboard
+# appearance = "dark"          # Window appearance: dark, light, or system
+keep_alive = "5m"              # Keep Ollama model loaded this long after use
+
+# ---------------------------------------------------------------------------
+# Providers
+# ---------------------------------------------------------------------------
+
+# Ollama (local, no API key required)
+# Install: https://ollama.com and run: ollama pull llama3.2
+[providers.ollama]
+base_url = "http://localhost:11434"
+default_model = "llama3.2"
+
+# OpenAI (cloud)
+# [providers.openai]
+# base_url = "https://api.openai.com/v1"
+# default_model = "gpt-5.4"
+# api_key = "sk-..."                      # Or use the env var option below if you don't want to write api_key in this file
+# api_key_env = "MYLLM_OPENAI_API_KEY"   # export MYLLM_OPENAI_API_KEY="sk-..."
+
+# Anthropic (cloud)
+# [providers.anthropic]
+# base_url = "https://api.anthropic.com/v1"
+# default_model = "claude-sonnet-4-6"
+# api_key_env = "MYLLM_ANTHROPIC_API_KEY" # export MYLLM_ANTHROPIC_API_KEY="sk-ant-..."
+
+# ---------------------------------------------------------------------------
+# Tasks
+# Each task requires: instruction
+# Optional: name, provider, model, hotkey, auto_copy
+# ---------------------------------------------------------------------------
+
+[tasks.summarize]
+name = "Summarize"
+hotkey = "cmd+shift+s"
+instruction = '''
+Summarize the provided text into clear, concise bullet points.
+Capture all key ideas and important details. Omit filler and redundancy.
+Output only the bullet-point summary, no preamble or commentary.
+Use the same language as the original text.
+'''
+
+[tasks.polish]
+name = "Polish"
+hotkey = "cmd+shift+p"
+instruction = '''
+Improve the clarity, flow, and correctness of the provided text.
+Fix grammar, punctuation, and word choice. Preserve the original meaning and tone.
+Output only the revised text, no explanation.
+Use the same language as the original text.
+'''
+
+[tasks.explain]
+name = "Explain"
+hotkey = "cmd+shift+e"
+auto_copy = false              # Explanation is for reading; skip auto-copy
+instruction = '''
+Explain the provided concept, term, or passage in plain language.
+Aim for clarity over exhaustiveness. Keep it to a short paragraph.
+Output only the explanation, no preamble.
+Use the same language as the original text.
+'''
+
+[tasks.formal]
+name = "LinkedIn Speak"
+hotkey = "cmd+shift+l"
+instruction = '''
+Transform plain, everyday statements into exaggerated, high-flown LinkedIn-style narratives
+that frame even trivial actions as strategic, growth-oriented, and professionally meaningful experiences.
+It interprets user input as a base event or action, then expands it into a polished, verbose paragraph
+using corporate jargon, leadership framing, and reflective tone.
+Outputs should emphasize themes like growth mindset, strategic thinking, resilience, impact,
+and continuous improvement.
+Use formal, confident, and aspirational language typical of LinkedIn posts.
+Do not produce casual outputs.
+Avoid emojis or hashtags.
+'''
+
+# ---------------------------------------------------------------------------
+# Translation
+# Language detection uses the whichlang crate (16 languages).
+# Without enough text, default_source is assumed.
+# Install the translation model: ollama pull translategemma:12b
+# engine = "translategemma" uses the built-in prompt (custom instruction is ignored, not deleted).
+# engine = "custom" expands {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}.
+# ---------------------------------------------------------------------------
+
+[translation]
+enabled = true
+engine = "translategemma"
+provider = "ollama"
+model = "translategemma:12b"
+hotkey = "cmd+shift+t"
+default_source = "en"          # Assumed source language when detection is unavailable
+default_target = "ja"          # Translate to this when source matches default_source
+fallback_target = "en"         # Translate to this for all other detected languages
+instruction = '''
+You are a professional {SOURCE_LANG} ({SOURCE_CODE}) to {TARGET_LANG} ({TARGET_CODE}) translator.
+Produce only the {TARGET_LANG} translation of:
+
+{TEXT}
+'''

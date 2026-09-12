@@ -1,0 +1,11 @@
+[package]
+name = "myllm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Floating GUI for personal LLM tasks"
+
+[dependencies]
+myllm-core = { path = "../myllm-core" }
