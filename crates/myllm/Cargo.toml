@@ -20,6 +20,7 @@ tray-icon = "0.21"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [
     "NSApplication",
+    "NSColor",
     "NSRunningApplication",
     "NSWindow",
     "NSWorkspace",

@@ -1,5 +1,6 @@
 mod app;
 mod args;
+mod fonts;
 mod os;
 mod settings;
 
@@ -18,7 +19,11 @@ fn main() -> eframe::Result {
             .with_always_on_top()
             .with_visible(visible)
             .with_title("My LLM")
-            .with_app_id("jp.emotiongraphics.myllm"),
+            .with_app_id("jp.emotiongraphics.myllm")
+            .with_transparent(true)
+            .with_fullsize_content_view(true)
+            .with_title_shown(false)
+            .with_titlebar_shown(false),
         ..Default::default()
     };
     eframe::run_native(

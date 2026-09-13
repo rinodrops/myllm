@@ -12,9 +12,9 @@ pub const TRANSLATE_TASK: &str = "translate";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Appearance {
-    #[default]
     Dark,
     Light,
+    #[default]
     System,
 }
 
@@ -22,8 +22,8 @@ impl Appearance {
     pub fn parse(raw: Option<&str>) -> Self {
         match raw.map(|s| s.trim()) {
             Some("light") => Self::Light,
-            Some("system") => Self::System,
-            _ => Self::Dark,
+            Some("dark") => Self::Dark,
+            _ => Self::System,
         }
     }
 }
@@ -60,6 +60,8 @@ pub struct General {
     pub appearance: Option<String>,
     #[serde(default = "default_keep_alive")]
     pub keep_alive: String,
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
 }
 
 impl Default for General {
@@ -69,6 +71,7 @@ impl Default for General {
             auto_copy: default_true(),
             appearance: None,
             keep_alive: default_keep_alive(),
+            opacity: default_opacity(),
         }
     }
 }
@@ -83,6 +86,10 @@ fn default_true() -> Option<bool> {
 
 fn default_keep_alive() -> String {
     "5m".to_string()
+}
+
+fn default_opacity() -> f32 {
+    0.92
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -201,6 +208,10 @@ impl Config {
 
     pub fn appearance(&self) -> Appearance {
         Appearance::parse(self.general.appearance.as_deref())
+    }
+
+    pub fn opacity(&self) -> f32 {
+        self.general.opacity.clamp(0.5, 1.0)
     }
 
     pub fn translation(&self) -> Translation {
@@ -666,5 +677,32 @@ instruction = "Custom {SOURCE_CODE}->{TARGET_CODE}: {TEXT}"
             cfg.translation_engine(),
             TranslationEngine::TranslateGemma
         );
+    }
+
+    #[test]
+    fn missing_appearance_follows_system() {
+        assert_eq!(Appearance::parse(None), Appearance::System);
+        assert_eq!(Appearance::parse(Some("system")), Appearance::System);
+        assert_eq!(Appearance::parse(Some("dark")), Appearance::Dark);
+        assert_eq!(Appearance::parse(Some("light")), Appearance::Light);
+        assert_eq!(Appearance::default(), Appearance::System);
+    }
+
+    #[test]
+    fn missing_opacity_defaults_and_clamps() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+[providers.ollama]
+default_model = "llama3.2"
+"#,
+        );
+        assert!((cfg.opacity() - 0.92).abs() < f32::EPSILON);
+        let mut cfg = cfg;
+        cfg.general.opacity = 0.2;
+        assert!((cfg.opacity() - 0.5).abs() < f32::EPSILON);
+        cfg.general.opacity = 1.4;
+        assert!((cfg.opacity() - 1.0).abs() < f32::EPSILON);
     }
 }
