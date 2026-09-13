@@ -21,11 +21,12 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [
     "NSApplication",
     "NSColor",
+    "NSImage",
     "NSRunningApplication",
     "NSWindow",
     "NSWorkspace",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSString"] }
+objc2-foundation = { version = "0.3", features = ["NSData", "NSString"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = [

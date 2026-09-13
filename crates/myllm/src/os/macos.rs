@@ -1,11 +1,14 @@
 use std::ffi::c_void;
 use std::time::Duration;
 
+use objc2::AnyThread;
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSColor, NSRunningApplication, NSWindow,
+    NSApplication, NSApplicationActivationPolicy, NSColor, NSImage, NSRunningApplication, NSWindow,
     NSWindowCollectionBehavior, NSWindowStyleMask, NSWindowTitleVisibility, NSWorkspace,
 };
-use objc2_foundation::MainThreadMarker;
+use objc2_foundation::{MainThreadMarker, NSData};
+
+use crate::assets;
 
 use super::read_clipboard;
 
@@ -42,6 +45,18 @@ pub fn set_accessory(hidden: bool) {
         NSApplicationActivationPolicy::Regular
     };
     let _ = app.setActivationPolicy(policy);
+}
+
+pub fn set_app_icon() {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let data = NSData::with_bytes(assets::APP_ICON_PNG);
+    let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) else {
+        return;
+    };
+    let app = NSApplication::sharedApplication(mtm);
+    unsafe { app.setApplicationIconImage(Some(&image)) };
 }
 
 pub fn apply_float_chrome() {
