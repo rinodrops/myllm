@@ -26,7 +26,14 @@ objc2-app-kit = { version = "0.3", features = [
     "NSWindow",
     "NSWorkspace",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSData", "NSString"] }
+objc2-foundation = { version = "0.3", features = [
+    "NSArray",
+    "NSData",
+    "NSDictionary",
+    "NSLocale",
+    "NSNotification",
+    "NSString",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = [
