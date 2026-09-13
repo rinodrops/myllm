@@ -3,6 +3,7 @@
 icon_style = "rounded"
 theme = "os"
 lang = "os"
+lang_key = "general.ui_lang"
 save_button = "os"
 content_width = 640
 content_height = 400
@@ -19,6 +20,15 @@ type = "string"
 widget = "segmented_control"
 options = ["system", "light", "dark"]
 max_width = 300
+
+[[tabs.fields]]
+key = "general.ui_lang"
+label = { en = "Language", ja = "表示言語" }
+type = "string"
+widget = "select"
+options = ["os", "ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
+max_width = 300
+hint = { en = "Window and menu language. Independent of translation target. os follows the OS.", ja = "ウィンドウとメニューの言語。翻訳のターゲットとは別。os は OS に従う。" }
 
 [[tabs.fields]]
 key = "general.default_provider"

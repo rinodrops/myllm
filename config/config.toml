@@ -16,6 +16,7 @@ default_task = "polish"        # Task id for Open Window when there is no last-r
 empty_window_task = "last"     # Open Window ComboBox: last | default
 open_hotkey = "cmd+shift+o"    # Empty Input window (no clipboard / selection grab)
 capture_selection = false      # true: send Command/Control+C to the frontmost app
+ui_lang = "os"                 # Chrome language: os, or a whichlang code (en, ja, …)
 
 # ---------------------------------------------------------------------------
 # Providers
