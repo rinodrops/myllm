@@ -12,6 +12,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::args::Args;
+use crate::fonts;
 use crate::os;
 use crate::settings;
 
@@ -41,6 +42,7 @@ pub struct MyApp {
     config_path: PathBuf,
     config_created: bool,
     appearance: Appearance,
+    opacity: f32,
     input: String,
     output: String,
     error: Option<String>,
@@ -66,7 +68,10 @@ impl MyApp {
             (Config::default(), myllm_core::config_file_path(), false)
         });
         let appearance = config.appearance();
+        let opacity = config.opacity();
+        fonts::setup_fonts(&cc.egui_ctx);
         apply_appearance(&cc.egui_ctx, appearance);
+        apply_opacity(&cc.egui_ctx, appearance, opacity);
 
         let mut app = Self {
             args,
@@ -74,6 +79,7 @@ impl MyApp {
             config_path,
             config_created,
             appearance,
+            opacity,
             input: String::new(),
             output: String::new(),
             error: None,
@@ -194,7 +200,9 @@ impl MyApp {
             Ok(config) => {
                 self.config = config;
                 self.appearance = self.config.appearance();
+                self.opacity = self.config.opacity();
                 apply_appearance(ctx, self.appearance);
+                apply_opacity(ctx, self.appearance, self.opacity);
                 self.install_hotkeys();
                 self.install_tray();
                 self.status = Some("Config reloaded".into());
@@ -370,6 +378,7 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         os::apply_float_chrome(ctx);
         apply_appearance(ctx, self.appearance);
+        apply_opacity(ctx, self.appearance, self.opacity);
 
         if !self.visible {
             if let Some(pid) = os::frontmost_pid() {
@@ -409,20 +418,28 @@ impl eframe::App for MyApp {
                 });
         }
 
-        egui::TopBottomPanel::top("input_header").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading(&self.title);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if self.output_done && ui.button("Copy").clicked() {
-                        if let Err(err) = os::write_clipboard(&self.output) {
-                            self.status = Some(err);
+        egui::TopBottomPanel::top("input_header")
+            .frame(panel_frame(ctx))
+            .show(ctx, |ui| {
+                #[cfg(target_os = "macos")]
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    #[cfg(target_os = "macos")]
+                    ui.add_space(70.0);
+                    ui.heading(&self.title);
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if self.output_done && ui.button("Copy").clicked() {
+                            if let Err(err) = os::write_clipboard(&self.output) {
+                                self.status = Some(err);
+                            }
                         }
-                    }
+                    });
                 });
             });
-        });
 
-        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+        egui::TopBottomPanel::bottom("status")
+            .frame(panel_frame(ctx))
+            .show(ctx, |ui| {
             if let Some(status) = &self.status {
                 ui.weak(status);
             } else if !os::supports_in_process_hotkeys() && !self.single_shot {
@@ -430,7 +447,9 @@ impl eframe::App for MyApp {
             }
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default()
+            .frame(panel_frame(ctx))
+            .show(ctx, |ui| {
             let avail = ui.available_height();
             ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), avail * 0.35),
@@ -470,6 +489,10 @@ impl eframe::App for MyApp {
                 });
         });
     }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.0, 0.0, 0.0, 0.0]
+    }
 }
 
 fn spawn_stream(run: ResolvedRun) -> Receiver<StreamMsg> {
@@ -491,11 +514,40 @@ fn spawn_stream(run: ResolvedRun) -> Receiver<StreamMsg> {
 }
 
 fn apply_appearance(ctx: &egui::Context, appearance: Appearance) {
-    match appearance {
-        Appearance::Dark => ctx.set_visuals(egui::Visuals::dark()),
-        Appearance::Light => ctx.set_visuals(egui::Visuals::light()),
-        Appearance::System => {}
-    }
+    ctx.set_theme(match appearance {
+        Appearance::Dark => egui::ThemePreference::Dark,
+        Appearance::Light => egui::ThemePreference::Light,
+        Appearance::System => egui::ThemePreference::System,
+    });
+}
+
+fn apply_opacity(ctx: &egui::Context, appearance: Appearance, opacity: f32) {
+    let dark = match appearance {
+        Appearance::Dark => true,
+        Appearance::Light => false,
+        Appearance::System => ctx.style().visuals.dark_mode,
+    };
+    let mut visuals = if dark {
+        egui::Visuals::dark()
+    } else {
+        egui::Visuals::light()
+    };
+    let alpha = (opacity.clamp(0.5, 1.0) * 255.0).round() as u8;
+    visuals.panel_fill = with_alpha(visuals.panel_fill, alpha);
+    visuals.window_fill = with_alpha(visuals.window_fill, alpha);
+    visuals.extreme_bg_color = with_alpha(visuals.extreme_bg_color, alpha);
+    visuals.faint_bg_color = with_alpha(visuals.faint_bg_color, alpha);
+    ctx.set_visuals(visuals);
+}
+
+fn with_alpha(color: Color32, alpha: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
+}
+
+fn panel_frame(ctx: &egui::Context) -> egui::Frame {
+    egui::Frame::new()
+        .fill(ctx.style().visuals.panel_fill)
+        .inner_margin(egui::Margin::same(8))
 }
 
 fn parse_hotkey(spec: &str) -> Option<HotKey> {

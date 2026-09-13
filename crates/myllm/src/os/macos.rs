@@ -2,8 +2,8 @@ use std::ffi::c_void;
 use std::time::Duration;
 
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSWindow,
-    NSWindowCollectionBehavior, NSWorkspace,
+    NSApplication, NSApplicationActivationPolicy, NSColor, NSRunningApplication, NSWindow,
+    NSWindowCollectionBehavior, NSWindowStyleMask, NSWindowTitleVisibility, NSWorkspace,
 };
 use objc2_foundation::MainThreadMarker;
 
@@ -64,6 +64,11 @@ fn configure_window(window: &NSWindow) {
             | NSWindowCollectionBehavior::IgnoresCycle,
     );
     window.setHidesOnDeactivate(false);
+    window.setTitlebarAppearsTransparent(true);
+    window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
+    window.setStyleMask(window.styleMask() | NSWindowStyleMask::FullSizeContentView);
+    window.setOpaque(false);
+    window.setBackgroundColor(Some(&NSColor::clearColor()));
 }
 
 pub fn frontmost_pid() -> Option<u32> {
