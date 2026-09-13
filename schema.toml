@@ -53,6 +53,35 @@ max = 1.0
 step = 0.01
 max_width = 100
 
+[[tabs.fields]]
+key = "general.default_task"
+label = { en = "Default task", ja = "デフォルトタスク" }
+type = "string"
+widget = "text_input"
+max_width = 200
+hint = { en = "Task id used when Open Window has no last-run task", ja = "空ウィンドウで前回タスクがないときに使うタスク id" }
+
+[[tabs.fields]]
+key = "general.empty_window_task"
+label = { en = "Open Window task", ja = "空ウィンドウのタスク" }
+type = "string"
+widget = "segmented_control"
+options = ["last", "default"]
+max_width = 240
+
+[[tabs.fields]]
+key = "general.open_hotkey"
+label = { en = "Open Window hotkey", ja = "空ウィンドウのホットキー" }
+type = "string"
+widget = "hotkey"
+
+[[tabs.fields]]
+key = "general.capture_selection"
+label = ""
+type = "bool"
+widget = "checkbox"
+sublabel = { en = "Send Command/Control+C to copy the selection. Many apps ignore this.", ja = "選択テキストを取るため前面アプリへ Command/Control+C を送る。効かないアプリが多い。" }
+
 [[tabs]]
 id = "providers"
 label = { en = "Providers", ja = "プロバイダ" }

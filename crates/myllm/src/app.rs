@@ -7,7 +7,7 @@ use std::time::Duration;
 use eframe::egui::{self, Align, Color32, Layout, RichText, ScrollArea, TextEdit, ViewportCommand};
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
-use myllm_core::{stream_run, Appearance, Config, ResolvedRun};
+use myllm_core::{stream_run, Appearance, Config, EmptyWindowTask, ResolvedRun};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
@@ -15,6 +15,8 @@ use crate::args::Args;
 use crate::fonts;
 use crate::os;
 use crate::settings;
+
+const OPEN_WINDOW: &str = "open_window";
 
 enum StreamMsg {
     Token(String),
@@ -24,11 +26,13 @@ enum StreamMsg {
 
 enum Job {
     Idle,
+    PrepareInput { task_id: String },
     Running { rx: Receiver<StreamMsg> },
 }
 
 struct TrayBits {
     _tray: TrayIcon,
+    _open_window: MenuItem,
     _reload: MenuItem,
     _open_config: MenuItem,
     _settings: MenuItem,
@@ -46,9 +50,13 @@ pub struct MyApp {
     input: String,
     output: String,
     error: Option<String>,
-    task_id: Option<String>,
+    selected_task: String,
+    last_task_id: Option<String>,
+    last_submitted: Option<(String, String)>,
     auto_copy: bool,
     job: Job,
+    awaiting_first_token: bool,
+    prepare_after_paint: bool,
     follow_output: bool,
     source_pid: Option<u32>,
     visible: bool,
@@ -69,6 +77,7 @@ impl MyApp {
             });
         let appearance = config.appearance();
         let opacity = config.opacity();
+        let selected_task = config.default_task_id();
         fonts::setup_fonts(&cc.egui_ctx);
         apply_appearance(&cc.egui_ctx, appearance);
         apply_opacity(&cc.egui_ctx, appearance, opacity);
@@ -83,9 +92,13 @@ impl MyApp {
             input: String::new(),
             output: String::new(),
             error: None,
-            task_id: None,
+            selected_task,
+            last_task_id: None,
+            last_submitted: None,
             auto_copy: true,
             job: Job::Idle,
+            awaiting_first_token: false,
+            prepare_after_paint: false,
             follow_output: true,
             source_pid: None,
             visible: single_shot,
@@ -100,10 +113,25 @@ impl MyApp {
         app.install_hotkeys();
         app.install_tray();
         if single_shot {
-            let task = app.args.task.clone().unwrap_or_else(|| "polish".into());
+            let task = app
+                .args
+                .task
+                .clone()
+                .unwrap_or_else(|| app.config.default_task_id());
             app.launch_task(&task);
         }
         app
+    }
+
+    fn is_busy(&self) -> bool {
+        !matches!(self.job, Job::Idle)
+    }
+
+    fn can_run(&self) -> bool {
+        if self.is_busy() {
+            return false;
+        }
+        self.last_submitted.as_ref() != Some(&(self.input.clone(), self.selected_task.clone()))
     }
 
     fn install_hotkeys(&mut self) {
@@ -130,6 +158,9 @@ impl MyApp {
                 specs.push(("translate".into(), hk));
             }
         }
+        if let Some(hk) = self.config.open_hotkey() {
+            specs.push((OPEN_WINDOW.into(), hk.to_string()));
+        }
         for (id, spec) in specs {
             if let Some(hotkey) = parse_hotkey(&spec) {
                 if manager.register(hotkey).is_ok() {
@@ -143,6 +174,9 @@ impl MyApp {
     fn install_tray(&mut self) {
         self.tray = None;
         let menu = Menu::new();
+        let open_window = MenuItem::new("Open Window", true, None);
+        let _ = menu.append(&open_window);
+        let _ = menu.append(&PredefinedMenuItem::separator());
         let mut tasks = Vec::new();
         for (id, task) in &self.config.tasks {
             let label = task.name.clone().unwrap_or_else(|| id.clone());
@@ -181,6 +215,7 @@ impl MyApp {
             Ok(tray) => {
                 self.tray = Some(TrayBits {
                     _tray: tray,
+                    _open_window: open_window,
                     _reload: reload,
                     _open_config: open_config,
                     _settings: settings_item,
@@ -200,6 +235,9 @@ impl MyApp {
                 self.config = config;
                 self.appearance = self.config.appearance();
                 self.opacity = self.config.opacity();
+                if !self.config.has_task(&self.selected_task) {
+                    self.selected_task = self.config.default_task_id();
+                }
                 apply_appearance(ctx, self.appearance);
                 apply_opacity(ctx, self.appearance, self.opacity);
                 self.install_hotkeys();
@@ -211,30 +249,81 @@ impl MyApp {
     }
 
     fn launch_task(&mut self, task_id: &str) {
-        let input = self
-            .args
-            .input
-            .clone()
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| os::capture_selection(self.source_pid));
-        let input = if input.trim().is_empty() {
-            os::read_clipboard()
-        } else {
-            input
+        if self.is_busy() {
+            return;
+        }
+        self.selected_task = task_id.to_string();
+        self.last_task_id = Some(task_id.to_string());
+        self.output.clear();
+        self.error = None;
+        self.awaiting_first_token = true;
+        self.follow_output = true;
+        self.visible = true;
+        os::set_accessory(false);
+        self.job = Job::PrepareInput {
+            task_id: task_id.to_string(),
         };
-        let input = if input.trim().is_empty() {
-            "No text selected and clipboard is empty.".to_string()
-        } else {
-            input
-        };
-        self.start_run(task_id, input);
     }
 
-    fn process_input(&mut self) {
-        let Some(task_id) = self.task_id.clone() else {
+    fn open_empty_window(&mut self) {
+        if self.is_busy() {
+            return;
+        }
+        let task = self.initial_empty_task();
+        self.selected_task = task.clone();
+        self.input.clear();
+        self.output.clear();
+        self.error = None;
+        self.awaiting_first_token = false;
+        self.last_submitted = Some((self.input.clone(), task));
+        self.visible = true;
+        os::set_accessory(false);
+    }
+
+    fn initial_empty_task(&self) -> String {
+        match self.config.empty_window_task() {
+            EmptyWindowTask::Last => self
+                .last_task_id
+                .as_deref()
+                .filter(|id| self.config.has_task(id))
+                .map(ToString::to_string)
+                .unwrap_or_else(|| self.config.default_task_id()),
+            EmptyWindowTask::Default => self.config.default_task_id(),
+        }
+    }
+
+    fn take_trigger_input(&self) -> String {
+        if let Some(input) = self.args.input.clone().filter(|s| !s.is_empty()) {
+            return input;
+        }
+        let text = if self.config.capture_selection() {
+            os::capture_selection(self.source_pid)
+        } else {
+            os::read_clipboard()
+        };
+        if text.trim().is_empty() {
+            "No text selected and clipboard is empty.".to_string()
+        } else {
+            text
+        }
+    }
+
+    fn poll_prepare(&mut self) {
+        let Job::PrepareInput { task_id } = &self.job else {
             return;
         };
+        let task_id = task_id.clone();
+        let input = self.take_trigger_input();
+        self.start_run(&task_id, input);
+    }
+
+    fn run_selected(&mut self) {
+        if !self.can_run() {
+            return;
+        }
+        let task_id = self.selected_task.clone();
         let input = self.input.clone();
+        self.last_task_id = Some(task_id.clone());
         self.start_run(&task_id, input);
     }
 
@@ -245,10 +334,13 @@ impl MyApp {
     }
 
     fn start_run(&mut self, task_id: &str, input: String) {
-        self.task_id = Some(task_id.to_string());
+        self.selected_task = task_id.to_string();
+        self.last_task_id = Some(task_id.to_string());
+        self.last_submitted = Some((input.clone(), task_id.to_string()));
         self.input = input.clone();
         self.output.clear();
         self.error = None;
+        self.awaiting_first_token = true;
         self.follow_output = true;
         match self.config.resolve_run(
             task_id,
@@ -270,6 +362,7 @@ impl MyApp {
             }
             Err(err) => {
                 self.error = Some(err.to_string());
+                self.awaiting_first_token = false;
                 self.visible = true;
                 os::set_accessory(false);
                 self.job = Job::Idle;
@@ -278,19 +371,26 @@ impl MyApp {
     }
 
     fn poll_hotkeys(&mut self) {
-        let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() else {
-            return;
-        };
-        if event.state != HotKeyState::Pressed {
-            return;
-        }
-        if let Some(pid) = os::frontmost_pid() {
-            if pid != os::current_pid() {
-                self.source_pid = Some(pid);
+        loop {
+            let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() else {
+                return;
+            };
+            if event.state != HotKeyState::Pressed {
+                continue;
             }
-        }
-        if let Some(task) = self.hotkey_map.get(&event.id).cloned() {
-            self.launch_task(&task);
+            if let Some(pid) = os::frontmost_pid() {
+                if pid != os::current_pid() {
+                    self.source_pid = Some(pid);
+                }
+            }
+            let Some(task) = self.hotkey_map.get(&event.id).cloned() else {
+                continue;
+            };
+            if task == OPEN_WINDOW {
+                self.open_empty_window();
+            } else {
+                self.launch_task(&task);
+            }
         }
     }
 
@@ -301,34 +401,47 @@ impl MyApp {
         let Ok(event) = MenuEvent::receiver().try_recv() else {
             return;
         };
-        if event.id == tray._quit.id() {
+        let quit = event.id == tray._quit.id();
+        let open_window = event.id == tray._open_window.id();
+        let reload = event.id == tray._reload.id();
+        let open_config = event.id == tray._open_config.id();
+        let settings = event.id == tray._settings.id();
+        let task_id = tray
+            .tasks
+            .iter()
+            .find(|(item, _)| event.id == item.id())
+            .map(|(_, id)| id.clone());
+        if quit {
             ctx.send_viewport_cmd(ViewportCommand::Close);
             return;
         }
-        if event.id == tray._reload.id() {
+        if open_window {
+            self.open_empty_window();
+            return;
+        }
+        if reload {
             self.reload_config(ctx);
             return;
         }
-        if event.id == tray._open_config.id() {
+        if open_config {
             if let Err(err) = os::open_path(&self.config_path) {
                 self.status = Some(err);
             }
             return;
         }
-        if event.id == tray._settings.id() {
+        if settings {
             match settings::spawn_settings(&self.config_path) {
                 Ok(()) => self.status = Some("Opened Settings".into()),
                 Err(err) => self.status = Some(err),
             }
             return;
         }
-        if let Some((_, id)) = tray.tasks.iter().find(|(item, _)| event.id == item.id()) {
+        if let Some(id) = task_id {
             if let Some(pid) = os::frontmost_pid() {
                 if pid != os::current_pid() {
                     self.source_pid = Some(pid);
                 }
             }
-            let id = id.clone();
             self.launch_task(&id);
         }
     }
@@ -351,14 +464,17 @@ impl MyApp {
             }
         }
         if !tokens.is_empty() {
+            self.awaiting_first_token = false;
             self.output.push_str(&tokens.concat());
             ctx.request_repaint();
         }
         if let Some(err) = error {
             self.error = Some(err);
+            self.awaiting_first_token = false;
         }
         if done {
             self.job = Job::Idle;
+            self.awaiting_first_token = false;
             if self.auto_copy && self.error.is_none() && !self.output.is_empty() {
                 if let Err(err) = os::write_clipboard(&self.output) {
                     self.status = Some(err);
@@ -379,6 +495,19 @@ impl MyApp {
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         ctx.send_viewport_cmd(ViewportCommand::CancelClose);
     }
+
+    fn task_choices(&self) -> Vec<(String, String)> {
+        let mut choices: Vec<(String, String)> = self
+            .config
+            .tasks
+            .iter()
+            .map(|(id, task)| (id.clone(), task.name.clone().unwrap_or_else(|| id.clone())))
+            .collect();
+        if self.config.translation().enabled {
+            choices.push(("translate".into(), "Translate".into()));
+        }
+        choices
+    }
 }
 
 impl eframe::App for MyApp {
@@ -395,9 +524,19 @@ impl eframe::App for MyApp {
             }
         }
 
+        if self.prepare_after_paint {
+            self.prepare_after_paint = false;
+            self.poll_prepare();
+        }
+
         self.poll_hotkeys();
         self.poll_tray(ctx);
         self.poll_stream(ctx);
+
+        if matches!(self.job, Job::PrepareInput { .. }) {
+            self.prepare_after_paint = true;
+            ctx.request_repaint();
+        }
 
         if self.visible {
             ctx.send_viewport_cmd(ViewportCommand::Visible(true));
@@ -424,22 +563,42 @@ impl eframe::App for MyApp {
                 });
         }
 
+        let busy = self.is_busy();
+        let can_run = self.can_run();
+        let choices = self.task_choices();
+        let selected_label = self.config.task_label(&self.selected_task);
+
         egui::TopBottomPanel::bottom("actions")
             .show_separator_line(false)
             .frame(actions_frame(ctx))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
-                    let can_process =
-                        self.task_id.is_some() && !matches!(self.job, Job::Running { .. });
-                    ui.add_enabled_ui(can_process, |ui| {
-                        if pill_button(ui, "Process").clicked() {
-                            self.process_input();
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if pill_button(ui, "Copy").clicked() {
+                            self.copy_output();
                         }
+                        ui.add_enabled_ui(can_run, |ui| {
+                            if pill_button(ui, "Run").clicked() {
+                                self.run_selected();
+                            }
+                        });
+                        ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                            ui.add_enabled_ui(!busy, |ui| {
+                                egui::ComboBox::from_id_salt("task_picker")
+                                    .selected_text(selected_label)
+                                    .show_ui(ui, |ui| {
+                                        for (id, name) in &choices {
+                                            ui.selectable_value(
+                                                &mut self.selected_task,
+                                                id.clone(),
+                                                name,
+                                            );
+                                        }
+                                    });
+                            });
+                        });
                     });
-                    if pill_button(ui, "Copy").clicked() {
-                        self.copy_output();
-                    }
                 });
                 if let Some(status) = &self.status {
                     ui.weak(status);
@@ -459,16 +618,19 @@ impl eframe::App for MyApp {
                     Layout::top_down(Align::Min),
                     |ui| {
                         ui.label(RichText::new("Input").small().color(Color32::GRAY));
-                        ScrollArea::vertical()
-                            .id_salt("input")
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.add_sized(
-                                    ui.available_size(),
-                                    TextEdit::multiline(&mut self.input)
-                                        .desired_width(f32::INFINITY),
-                                );
-                            });
+                        ui.add_enabled_ui(!busy, |ui| {
+                            ScrollArea::vertical()
+                                .id_salt("input")
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    let mut edit = TextEdit::multiline(&mut self.input)
+                                        .desired_width(f32::INFINITY);
+                                    if busy {
+                                        edit = edit.text_color(Color32::GRAY);
+                                    }
+                                    ui.add_sized(ui.available_size(), edit);
+                                });
+                        });
                     },
                 );
                 ui.allocate_ui_with_layout(
@@ -479,20 +641,26 @@ impl eframe::App for MyApp {
                         if let Some(err) = &self.error {
                             ui.colored_label(Color32::from_rgb(220, 80, 80), err);
                         }
-                        ScrollArea::vertical()
-                            .id_salt("output")
-                            .stick_to_bottom(self.follow_output)
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                let mut output = self.output.clone();
-                                ui.add_sized(
-                                    ui.available_size(),
-                                    TextEdit::multiline(&mut output)
-                                        .desired_width(f32::INFINITY)
-                                        .interactive(true),
-                                );
-                                let _ = output;
+                        if self.awaiting_first_token && self.error.is_none() {
+                            ui.centered_and_justified(|ui| {
+                                ui.add(egui::Spinner::new().size(24.0));
                             });
+                        } else {
+                            ScrollArea::vertical()
+                                .id_salt("output")
+                                .stick_to_bottom(self.follow_output)
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    let mut output = self.output.clone();
+                                    ui.add_sized(
+                                        ui.available_size(),
+                                        TextEdit::multiline(&mut output)
+                                            .desired_width(f32::INFINITY)
+                                            .interactive(true),
+                                    );
+                                    let _ = output;
+                                });
+                        }
                     },
                 );
             });
