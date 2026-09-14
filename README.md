@@ -36,15 +36,17 @@ On macOS, daily use is an unsigned `.app`. Clone [Settings](https://github.com/r
 just install   # dist/darwin-arm64/My LLM.app → /Applications
 ```
 
-`just darwin-build-arm64` only writes the unsigned bundle under `dist/`. `just dev` does not copy Settings beside `target/debug/myllm`, so the tray item stays disabled there.
+`just darwin-build-arm64` writes the unsigned Apple Silicon bundle under `dist/`. Intel Macs use `just darwin-build-x86_64`. `just dev` does not copy Settings beside `target/debug/myllm`, so the tray item stays disabled there.
 
-Signed, notarized DMGs:
+Signed, notarized DMGs and zips:
 
 ```bash
 just darwin-notarize-arm64   # dist/My-LLM-vVERSION-darwin-arm64.dmg
+just darwin-zip-arm64        # notarized .app as a zip
+just darwin-zip-x86_64       # Intel Mac
 ```
 
-Version tags (`v*`) run the same recipe on GitHub Actions. Unsigned `just install` stays the daily path.
+Version tags (`v*`) run `just darwin-zip-*` for both architectures on GitHub Actions. Unsigned `just install` stays the Apple Silicon daily path.
 
 ## Configuration
 
