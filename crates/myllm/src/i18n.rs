@@ -17,9 +17,7 @@ pub struct Strings {
     pub ok: &'static str,
     pub wayland_hint: &'static str,
     pub clipboard_empty: &'static str,
-    pub config_reloaded: &'static str,
     pub copied: &'static str,
-    pub opened_settings: &'static str,
     pub translate: &'static str,
     pub config_created_title: &'static str,
 }
@@ -38,9 +36,7 @@ const EN: Strings = Strings {
     ok: "OK",
     wayland_hint: "On Wayland, assign a compositor shortcut to `myllm --task <id>`.",
     clipboard_empty: "No text selected and clipboard is empty.",
-    config_reloaded: "Config reloaded",
     copied: "Copied",
-    opened_settings: "Opened Settings",
     translate: "Translate",
     config_created_title: "Configuration created",
 };
@@ -59,9 +55,7 @@ const JA: Strings = Strings {
     ok: "OK",
     wayland_hint: "Wayland ではコンポジタのショートカットから `myllm --task <id>` を実行します。",
     clipboard_empty: "選択テキストもクリップボードも空です。",
-    config_reloaded: "設定を再読み込みしました",
     copied: "コピーしました",
-    opened_settings: "設定を開きました",
     translate: "翻訳",
     config_created_title: "設定ファイルを作成しました",
 };
