@@ -9,12 +9,11 @@ min_macos := "13.0"
 version := `awk -F'"' '/^version *=/{print $2; exit}' Cargo.toml`
 
 rust_target_arm64 := "aarch64-apple-darwin"
+rust_target_x86 := "x86_64-apple-darwin"
 icon_src := "crates/myllm/assets/appicon.png"
 settings_repo := env_var_or_default("SETTINGS_REPO", "../settings")
 entitlements := "assets/darwin/entitlements.plist"
 dmg_settings := "assets/darwin/dmg_settings.py"
-app_bundle := "dist/darwin-arm64/" + app_name + ".app"
-dmg_path := "dist/" + pkg_name + "-v" + version + "-darwin-arm64.dmg"
 
 default: help
 
@@ -29,45 +28,59 @@ dev:
 # ---------------------------------------------------------------------------
 
 [macos]
+darwin-build: darwin-build-arm64 darwin-build-x86_64
+
+[macos]
 darwin-build-arm64:
     just _darwin-bundle darwin-arm64 {{rust_target_arm64}}
-    @echo "App bundle: {{app_bundle}}"
+    @echo "App bundle: dist/darwin-arm64/{{app_name}}.app"
+
+[macos]
+darwin-build-x86_64:
+    just _darwin-bundle darwin-x86_64 {{rust_target_x86}}
+    @echo "App bundle: dist/darwin-x86_64/{{app_name}}.app"
 
 [macos]
 darwin-sign-arm64: darwin-build-arm64
-    just _require-cert
-    xattr -cr "{{app_bundle}}"
-    codesign --deep --force --options runtime \
-        --entitlements "{{entitlements}}" \
-        --sign "${APPLE_DEVELOPER_CERTIFICATE_NAME}" \
-        "{{app_bundle}}"
-    @echo "Signed: {{app_bundle}}"
+    just _darwin-sign darwin-arm64
+
+[macos]
+darwin-sign-x86_64: darwin-build-x86_64
+    just _darwin-sign darwin-x86_64
 
 [macos]
 darwin-dmg-arm64: darwin-build-arm64
-    just _darwin-create-dmg
-    @echo "DMG created: {{dmg_path}}"
+    just _darwin-create-dmg darwin-arm64
+    @echo "DMG created: dist/{{pkg_name}}-v{{version}}-darwin-arm64.dmg"
+
+[macos]
+darwin-dmg-x86_64: darwin-build-x86_64
+    just _darwin-create-dmg darwin-x86_64
+    @echo "DMG created: dist/{{pkg_name}}-v{{version}}-darwin-x86_64.dmg"
 
 [macos]
 darwin-notarize-arm64: darwin-sign-arm64
-    just _require-notarize-env
-    just _darwin-create-dmg
-    xcrun notarytool submit \
-        "{{dmg_path}}" \
-        --apple-id "${APPLE_ID}" \
-        --password "${APPLE_DEVELOPER_APP_PASSWORD}" \
-        --team-id "${APPLE_DEVELOPER_TEAM_ID}" \
-        --wait
-    xcrun stapler staple "{{dmg_path}}"
-    @echo "Notarized: {{dmg_path}}"
+    just _darwin-notarize darwin-arm64
 
 [macos]
-darwin-release: darwin-notarize-arm64
+darwin-notarize-x86_64: darwin-sign-x86_64
+    just _darwin-notarize darwin-x86_64
+
+[macos]
+darwin-zip-arm64: darwin-notarize-arm64
+    just _darwin-zip darwin-arm64
+
+[macos]
+darwin-zip-x86_64: darwin-notarize-x86_64
+    just _darwin-zip darwin-x86_64
+
+[macos]
+darwin-release: darwin-notarize-arm64 darwin-notarize-x86_64
 
 [macos]
 install: darwin-build-arm64
     rm -rf "/Applications/{{app_name}}.app"
-    cp -r "{{app_bundle}}" "/Applications/"
+    cp -r "dist/darwin-arm64/{{app_name}}.app" "/Applications/"
 
 clean:
     cargo clean
@@ -79,17 +92,17 @@ clean:
 
 [macos]
 _darwin-bundle arch rust_target:
-    MACOSX_DEPLOYMENT_TARGET={{min_macos}} cargo build --release -p myllm
+    MACOSX_DEPLOYMENT_TARGET={{min_macos}} cargo build --release -p myllm --target {{rust_target}}
     mkdir -p "dist/{{arch}}/{{app_name}}.app/Contents/MacOS"
     mkdir -p "dist/{{arch}}/{{app_name}}.app/Contents/Resources"
-    cp "target/release/{{exe_name}}" \
+    cp "target/{{rust_target}}/release/{{exe_name}}" \
         "dist/{{arch}}/{{app_name}}.app/Contents/MacOS/{{exe_name}}"
     just _plist "dist/{{arch}}/{{app_name}}.app/Contents"
     just _icns "dist/{{arch}}/{{app_name}}.app/Contents/Resources/AppIcon.icns"
-    just _bundle-settings "dist/{{arch}}/{{app_name}}.app/Contents/MacOS"
+    just _bundle-settings "dist/{{arch}}/{{app_name}}.app/Contents/MacOS" {{rust_target}}
 
 [macos]
-_bundle-settings dest_macos:
+_bundle-settings dest_macos rust_target:
     #!/usr/bin/env bash
     set -euo pipefail
     ROOT="$(cd "{{justfile_directory()}}" && pwd)"
@@ -106,12 +119,20 @@ _bundle-settings dest_macos:
         echo "Error: schema.toml not found at ${ROOT}/schema.toml" >&2
         exit 1
     fi
-    echo "Building Settings from ${ROOT}/schema.toml"
+    case "{{rust_target}}" in
+        aarch64-apple-darwin) SETTINGS_RECIPE="binary-arm64" ;;
+        x86_64-apple-darwin) SETTINGS_RECIPE="binary-x86_64" ;;
+        *)
+            echo "Error: unsupported Settings target {{rust_target}}" >&2
+            exit 1
+            ;;
+    esac
+    echo "Building Settings from ${ROOT}/schema.toml  ({{rust_target}})"
     (cd "${SETTINGS_DIR}" && \
         SCHEMA="${ROOT}/schema.toml" \
         MACOSX_DEPLOYMENT_TARGET="{{min_macos}}" \
-        just binary)
-    cp "${SETTINGS_DIR}/target/release/settings" "{{dest_macos}}/settings"
+        just "${SETTINGS_RECIPE}")
+    cp "${SETTINGS_DIR}/target/{{rust_target}}/release/settings" "{{dest_macos}}/settings"
     echo "Bundled Settings: {{dest_macos}}/settings"
 
 [macos]
@@ -148,14 +169,44 @@ _icns icns_out:
     rm -rf "${ICONSET_WORK}"
 
 [macos]
-_darwin-create-dmg:
+_darwin-sign arch:
+    just _require-cert
+    xattr -cr "dist/{{arch}}/{{app_name}}.app"
+    codesign --deep --force --options runtime \
+        --entitlements "{{entitlements}}" \
+        --sign "${APPLE_DEVELOPER_CERTIFICATE_NAME}" \
+        "dist/{{arch}}/{{app_name}}.app"
+    @echo "Signed: dist/{{arch}}/{{app_name}}.app"
+
+[macos]
+_darwin-create-dmg arch:
     mkdir -p dist
     just _require-dmgbuild
     dmgbuild \
         -s "{{dmg_settings}}" \
-        -D app="{{app_bundle}}" \
+        -D app="dist/{{arch}}/{{app_name}}.app" \
         "{{app_name}}" \
-        "{{dmg_path}}"
+        "dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg"
+
+[macos]
+_darwin-notarize arch:
+    just _require-notarize-env
+    just _darwin-create-dmg {{arch}}
+    xcrun notarytool submit \
+        "dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg" \
+        --apple-id "${APPLE_ID}" \
+        --password "${APPLE_DEVELOPER_APP_PASSWORD}" \
+        --team-id "${APPLE_DEVELOPER_TEAM_ID}" \
+        --wait
+    xcrun stapler staple "dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg"
+    @echo "Notarized: dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg"
+
+[macos]
+_darwin-zip arch:
+    ditto -c -k --keepParent \
+        "dist/{{arch}}/{{app_name}}.app" \
+        "dist/{{pkg_name}}-v{{version}}-{{arch}}.zip"
+    @echo "Zip created: dist/{{pkg_name}}-v{{version}}-{{arch}}.zip"
 
 _require-dmgbuild:
     #!/usr/bin/env bash
