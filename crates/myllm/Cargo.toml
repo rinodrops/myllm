@@ -14,7 +14,10 @@ egui = "0.32"
 global-hotkey = "0.7"
 myllm-core = { path = "../myllm-core" }
 raw-window-handle = "0.6"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 tray-icon = "0.21"
+dirs = "6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

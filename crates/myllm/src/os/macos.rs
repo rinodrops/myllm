@@ -146,7 +146,14 @@ pub fn apply_float_chrome() {
     }
 }
 
+fn is_result_window(window: &NSWindow) -> bool {
+    window.class().name().to_bytes() == b"WinitWindow"
+}
+
 fn configure_window(window: &NSWindow) {
+    if !is_result_window(window) {
+        return;
+    }
     window.setLevel(3);
     window.setCollectionBehavior(
         NSWindowCollectionBehavior::CanJoinAllSpaces
