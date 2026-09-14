@@ -8,7 +8,7 @@ mod tests {
     #[test]
     fn icons_decode() {
         let app = eframe::icon_data::from_png_bytes(APP_ICON_PNG).expect("app icon");
-        assert_eq!((app.width, app.height), (512, 512));
+        assert_eq!((app.width, app.height), (1024, 1024));
         let tray = eframe::icon_data::from_png_bytes(TRAY_ICON_PNG).expect("tray icon");
         assert_eq!((tray.width, tray.height), (44, 44));
         assert_eq!(tray.width % 4, 0);
