@@ -36,6 +36,11 @@ pub fn set_accessory(hidden: bool) {
     let _ = hidden;
 }
 
+pub fn set_app_icon() {
+    #[cfg(target_os = "macos")]
+    macos::set_app_icon();
+}
+
 pub fn frontmost_pid() -> Option<u32> {
     #[cfg(target_os = "macos")]
     {

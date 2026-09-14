@@ -46,10 +46,9 @@ pub struct MyApp {
     input: String,
     output: String,
     error: Option<String>,
-    title: String,
+    task_id: Option<String>,
     auto_copy: bool,
     job: Job,
-    output_done: bool,
     follow_output: bool,
     source_pid: Option<u32>,
     visible: bool,
@@ -63,10 +62,11 @@ pub struct MyApp {
 impl MyApp {
     pub fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
         let single_shot = args.is_single_shot();
-        let (config, config_path, config_created) = Config::load_or_bootstrap().unwrap_or_else(|err| {
-            eprintln!("{err}");
-            (Config::default(), myllm_core::config_file_path(), false)
-        });
+        let (config, config_path, config_created) =
+            Config::load_or_bootstrap().unwrap_or_else(|err| {
+                eprintln!("{err}");
+                (Config::default(), myllm_core::config_file_path(), false)
+            });
         let appearance = config.appearance();
         let opacity = config.opacity();
         fonts::setup_fonts(&cc.egui_ctx);
@@ -83,10 +83,9 @@ impl MyApp {
             input: String::new(),
             output: String::new(),
             error: None,
-            title: "My LLM".into(),
+            task_id: None,
             auto_copy: true,
             job: Job::Idle,
-            output_done: false,
             follow_output: true,
             source_pid: None,
             visible: single_shot,
@@ -97,14 +96,11 @@ impl MyApp {
             status: None,
         };
         os::set_accessory(!single_shot);
+        os::set_app_icon();
         app.install_hotkeys();
         app.install_tray();
         if single_shot {
-            let task = app
-                .args
-                .task
-                .clone()
-                .unwrap_or_else(|| "polish".into());
+            let task = app.args.task.clone().unwrap_or_else(|| "polish".into());
             app.launch_task(&task);
         }
         app
@@ -173,12 +169,15 @@ impl MyApp {
         let _ = menu.append(&settings_item);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&quit);
-        match TrayIconBuilder::new()
+        let mut tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_tooltip("My LLM")
-            .with_icon(tray_icon_image())
-            .build()
+            .with_icon(tray_icon_image());
+        #[cfg(target_os = "macos")]
         {
+            tray = tray.with_icon_as_template(true);
+        }
+        match tray.build() {
             Ok(tray) => {
                 self.tray = Some(TrayBits {
                     _tray: tray,
@@ -231,11 +230,25 @@ impl MyApp {
         self.start_run(task_id, input);
     }
 
+    fn process_input(&mut self) {
+        let Some(task_id) = self.task_id.clone() else {
+            return;
+        };
+        let input = self.input.clone();
+        self.start_run(&task_id, input);
+    }
+
+    fn copy_output(&mut self) {
+        if let Err(err) = os::write_clipboard(&self.output) {
+            self.status = Some(err);
+        }
+    }
+
     fn start_run(&mut self, task_id: &str, input: String) {
+        self.task_id = Some(task_id.to_string());
         self.input = input.clone();
         self.output.clear();
         self.error = None;
-        self.output_done = false;
         self.follow_output = true;
         match self.config.resolve_run(
             task_id,
@@ -244,11 +257,6 @@ impl MyApp {
             self.args.to.as_deref(),
         ) {
             Ok(run) => {
-                if let Some(name) = &self.args.task_name {
-                    self.title = name.clone();
-                } else {
-                    self.title = run.display_name.clone();
-                }
                 self.auto_copy = if self.args.no_copy {
                     false
                 } else {
@@ -351,7 +359,6 @@ impl MyApp {
         }
         if done {
             self.job = Job::Idle;
-            self.output_done = true;
             if self.auto_copy && self.error.is_none() && !self.output.is_empty() {
                 if let Err(err) = os::write_clipboard(&self.output) {
                     self.status = Some(err);
@@ -394,7 +401,6 @@ impl eframe::App for MyApp {
 
         if self.visible {
             ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(ViewportCommand::Title(self.title.clone()));
         }
 
         if ctx.input(|i| i.viewport().close_requested()) {
@@ -418,76 +424,78 @@ impl eframe::App for MyApp {
                 });
         }
 
-        egui::TopBottomPanel::top("input_header")
-            .frame(panel_frame(ctx))
+        egui::TopBottomPanel::bottom("actions")
+            .show_separator_line(false)
+            .frame(actions_frame(ctx))
             .show(ctx, |ui| {
-                #[cfg(target_os = "macos")]
-                ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    #[cfg(target_os = "macos")]
-                    ui.add_space(70.0);
-                    ui.heading(&self.title);
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if self.output_done && ui.button("Copy").clicked() {
-                            if let Err(err) = os::write_clipboard(&self.output) {
-                                self.status = Some(err);
-                            }
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    let can_process =
+                        self.task_id.is_some() && !matches!(self.job, Job::Running { .. });
+                    ui.add_enabled_ui(can_process, |ui| {
+                        if pill_button(ui, "Process").clicked() {
+                            self.process_input();
                         }
                     });
+                    if pill_button(ui, "Copy").clicked() {
+                        self.copy_output();
+                    }
                 });
+                if let Some(status) = &self.status {
+                    ui.weak(status);
+                } else if !os::supports_in_process_hotkeys() && !self.single_shot {
+                    ui.weak("On Wayland, assign a compositor shortcut to `myllm --task <id>`.");
+                }
             });
 
-        egui::TopBottomPanel::bottom("status")
-            .frame(panel_frame(ctx))
-            .show(ctx, |ui| {
-            if let Some(status) = &self.status {
-                ui.weak(status);
-            } else if !os::supports_in_process_hotkeys() && !self.single_shot {
-                ui.weak("On Wayland, assign a compositor shortcut to `myllm --task <id>`.");
-            }
-        });
-
         egui::CentralPanel::default()
-            .frame(panel_frame(ctx))
+            .frame(content_frame(ctx))
             .show(ctx, |ui| {
-            let avail = ui.available_height();
-            ui.allocate_ui_with_layout(
-                egui::vec2(ui.available_width(), avail * 0.35),
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.label(RichText::new("Input").small().color(Color32::GRAY));
-                    ScrollArea::vertical()
-                        .id_salt("input")
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.add(
-                                TextEdit::multiline(&mut self.input)
-                                    .desired_width(f32::INFINITY)
-                                    .desired_rows(6),
-                            );
-                        });
-                },
-            );
-            ui.separator();
-            ui.label(RichText::new("Output").small().color(Color32::GRAY));
-            if let Some(err) = &self.error {
-                ui.colored_label(Color32::from_rgb(220, 80, 80), err);
-            }
-            ScrollArea::vertical()
-                .id_salt("output")
-                .stick_to_bottom(self.follow_output)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    let mut output = self.output.clone();
-                    ui.add(
-                        TextEdit::multiline(&mut output)
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(12)
-                            .interactive(true),
-                    );
-                    let _ = output;
-                });
-        });
+                let width = ui.available_width();
+                ui.spacing_mut().item_spacing.y = 8.0;
+                let half = (ui.available_height() - ui.spacing().item_spacing.y) / 2.0;
+                ui.allocate_ui_with_layout(
+                    egui::vec2(width, half),
+                    Layout::top_down(Align::Min),
+                    |ui| {
+                        ui.label(RichText::new("Input").small().color(Color32::GRAY));
+                        ScrollArea::vertical()
+                            .id_salt("input")
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.add_sized(
+                                    ui.available_size(),
+                                    TextEdit::multiline(&mut self.input)
+                                        .desired_width(f32::INFINITY),
+                                );
+                            });
+                    },
+                );
+                ui.allocate_ui_with_layout(
+                    egui::vec2(width, half),
+                    Layout::top_down(Align::Min),
+                    |ui| {
+                        ui.label(RichText::new("Output").small().color(Color32::GRAY));
+                        if let Some(err) = &self.error {
+                            ui.colored_label(Color32::from_rgb(220, 80, 80), err);
+                        }
+                        ScrollArea::vertical()
+                            .id_salt("output")
+                            .stick_to_bottom(self.follow_output)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                let mut output = self.output.clone();
+                                ui.add_sized(
+                                    ui.available_size(),
+                                    TextEdit::multiline(&mut output)
+                                        .desired_width(f32::INFINITY)
+                                        .interactive(true),
+                                );
+                                let _ = output;
+                            });
+                    },
+                );
+            });
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -544,10 +552,106 @@ fn with_alpha(color: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
 }
 
-fn panel_frame(ctx: &egui::Context) -> egui::Frame {
+fn content_frame(ctx: &egui::Context) -> egui::Frame {
+    let top = if cfg!(target_os = "macos") { 36 } else { 12 };
     egui::Frame::new()
         .fill(ctx.style().visuals.panel_fill)
-        .inner_margin(egui::Margin::same(8))
+        .inner_margin(egui::Margin {
+            left: 12,
+            right: 12,
+            top,
+            bottom: 4,
+        })
+}
+
+fn actions_frame(ctx: &egui::Context) -> egui::Frame {
+    egui::Frame::new()
+        .fill(ctx.style().visuals.panel_fill)
+        .inner_margin(egui::Margin {
+            left: 12,
+            right: 12,
+            top: 4,
+            bottom: 12,
+        })
+}
+
+fn pill_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    let dark = ui.visuals().dark_mode;
+    let measure = ui.fonts(|fonts| {
+        fonts.layout_no_wrap(
+            label.to_owned(),
+            egui::FontId::proportional(13.0),
+            Color32::WHITE,
+        )
+    });
+    let height = 28.0;
+    let width = (measure.size().x + 32.0).max(68.0);
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::click());
+    let (fill, text) = pill_colors(dark, ui.is_enabled(), &response);
+    let galley = ui.fonts(|fonts| {
+        fonts.layout_no_wrap(label.to_owned(), egui::FontId::proportional(13.0), text)
+    });
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same((height / 2.0) as u8), fill);
+    let text_pos = egui::pos2(
+        rect.center().x - galley.size().x * 0.5,
+        rect.center().y - galley.size().y * 0.5,
+    );
+    ui.painter().galley(text_pos, galley, text);
+    response
+}
+
+fn pill_colors(dark: bool, enabled: bool, response: &egui::Response) -> (Color32, Color32) {
+    if !enabled {
+        return if dark {
+            (
+                Color32::from_rgb(50, 50, 52),
+                Color32::from_rgb(120, 120, 124),
+            )
+        } else {
+            (
+                Color32::from_rgb(236, 236, 238),
+                Color32::from_rgb(170, 170, 174),
+            )
+        };
+    }
+    if response.is_pointer_button_down_on() {
+        return if dark {
+            (
+                Color32::from_rgb(88, 88, 92),
+                Color32::from_rgb(250, 250, 252),
+            )
+        } else {
+            (
+                Color32::from_rgb(200, 200, 204),
+                Color32::from_rgb(29, 29, 31),
+            )
+        };
+    }
+    if response.hovered() {
+        return if dark {
+            (
+                Color32::from_rgb(72, 72, 76),
+                Color32::from_rgb(245, 245, 247),
+            )
+        } else {
+            (
+                Color32::from_rgb(214, 214, 218),
+                Color32::from_rgb(50, 50, 52),
+            )
+        };
+    }
+    if dark {
+        (
+            Color32::from_rgb(58, 58, 62),
+            Color32::from_rgb(235, 235, 240),
+        )
+    } else {
+        (
+            Color32::from_rgb(228, 228, 230),
+            Color32::from_rgb(110, 110, 115),
+        )
+    }
 }
 
 fn parse_hotkey(spec: &str) -> Option<HotKey> {
@@ -617,16 +721,7 @@ fn parse_code(key: &str) -> Option<Code> {
 }
 
 fn tray_icon_image() -> Icon {
-    const SIZE: u32 = 32;
-    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let i = ((y * SIZE + x) * 4) as usize;
-            rgba[i] = 52;
-            rgba[i + 1] = 120;
-            rgba[i + 2] = 247;
-            rgba[i + 3] = 255;
-        }
-    }
-    Icon::from_rgba(rgba, SIZE, SIZE).expect("tray icon")
+    let icon =
+        eframe::icon_data::from_png_bytes(crate::assets::TRAY_ICON_PNG).expect("tray icon png");
+    Icon::from_rgba(icon.rgba, icon.width, icon.height).expect("tray icon")
 }
