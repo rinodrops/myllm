@@ -30,13 +30,21 @@ target/debug/myllm --task translate --to ja
 
 On Wayland, assign those argv invocations in the compositor. In-process global hotkeys are not the primary entry point there.
 
-On macOS, daily use is an unsigned `.app`:
+On macOS, daily use is an unsigned `.app`. Clone [Settings](https://github.com/rinodrops/settings) as a sibling of this repository (`../settings`) first. `just install` builds Settings from this repository's [`schema.toml`](schema.toml) and copies `settings` next to `myllm` in `My LLM.app/Contents/MacOS/`. After install, tray **Settings…** opens that binary against the user config.
 
 ```bash
 just install   # dist/darwin-arm64/My LLM.app → /Applications
 ```
 
-`just darwin-build-arm64` only writes the bundle under `dist/`. Signing and notarization are not included yet.
+`just darwin-build-arm64` only writes the unsigned bundle under `dist/`. `just dev` does not copy Settings beside `target/debug/myllm`, so the tray item stays disabled there.
+
+Signed, notarized DMGs:
+
+```bash
+just darwin-notarize-arm64   # dist/My-LLM-vVERSION-darwin-arm64.dmg
+```
+
+Version tags (`v*`) run the same recipe on GitHub Actions. Unsigned `just install` stays the daily path.
 
 ## Configuration
 
