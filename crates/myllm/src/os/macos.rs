@@ -110,6 +110,10 @@ pub fn set_accessory(hidden: bool) {
         NSApplicationActivationPolicy::Regular
     };
     let _ = app.setActivationPolicy(policy);
+    if !hidden {
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
+    }
 }
 
 pub fn set_app_icon() {

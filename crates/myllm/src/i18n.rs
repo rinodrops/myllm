@@ -18,6 +18,8 @@ pub struct Strings {
     pub wayland_hint: &'static str,
     pub clipboard_empty: &'static str,
     pub config_reloaded: &'static str,
+    pub copied: &'static str,
+    pub opened_settings: &'static str,
 }
 
 const EN: Strings = Strings {
@@ -35,6 +37,8 @@ const EN: Strings = Strings {
     wayland_hint: "On Wayland, assign a compositor shortcut to `myllm --task <id>`.",
     clipboard_empty: "No text selected and clipboard is empty.",
     config_reloaded: "Config reloaded",
+    copied: "Copied",
+    opened_settings: "Opened Settings",
 };
 
 const JA: Strings = Strings {
@@ -52,6 +56,8 @@ const JA: Strings = Strings {
     wayland_hint: "Wayland ではコンポジタのショートカットから `myllm --task <id>` を実行します。",
     clipboard_empty: "選択テキストもクリップボードも空です。",
     config_reloaded: "設定を再読み込みしました",
+    copied: "コピーしました",
+    opened_settings: "設定を開きました",
 };
 
 pub fn t(config_ui_lang: Option<&str>, os_langs: &[String]) -> &'static Strings {
