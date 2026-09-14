@@ -57,6 +57,45 @@ pub fn take_app_menu_quit() -> bool {
     }
 }
 
+pub fn local_hm() -> String {
+    #[cfg(unix)]
+    {
+        unix_local_hm()
+    }
+    #[cfg(windows)]
+    {
+        windows::local_hm()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        String::new()
+    }
+}
+
+#[cfg(unix)]
+fn unix_local_hm() -> String {
+    unsafe {
+        let mut t = 0 as libc::time_t;
+        libc::time(&mut t);
+        let mut tm = std::mem::zeroed();
+        if libc::localtime_r(&t, &mut tm).is_null() {
+            return String::new();
+        }
+        let mut buf = [0u8; 8];
+        let n = libc::strftime(
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+            b"%H:%M\0".as_ptr().cast(),
+            &tm,
+        );
+        if n == 0 {
+            String::new()
+        } else {
+            String::from_utf8_lossy(&buf[..n]).into_owned()
+        }
+    }
+}
+
 pub fn preferred_ui_langs() -> Vec<String> {
     #[cfg(target_os = "macos")]
     {

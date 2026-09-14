@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Align, Color32, Layout, RichText, ScrollArea, TextEdit, ViewportCommand};
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
@@ -18,6 +18,7 @@ use crate::os;
 use crate::settings;
 
 const OPEN_WINDOW: &str = "open_window";
+const NOTICE_TTL: Duration = Duration::from_millis(2500);
 
 enum StreamMsg {
     Token(String),
@@ -29,6 +30,16 @@ enum Job {
     Idle,
     PrepareInput { task_id: String },
     Running { rx: Receiver<StreamMsg> },
+}
+
+enum PendingShow {
+    Empty,
+    Task(String),
+}
+
+struct Notice {
+    text: String,
+    shown_at: Instant,
 }
 
 struct TrayBits {
@@ -74,7 +85,8 @@ pub struct MyApp {
     hotkey_map: HashMap<u32, String>,
     tray: Option<TrayBits>,
     app_menu: Option<AppMenuBits>,
-    status: Option<String>,
+    notice: Option<Notice>,
+    pending_show: Option<(PendingShow, Instant)>,
 }
 
 impl MyApp {
@@ -119,7 +131,8 @@ impl MyApp {
             hotkey_map: HashMap::new(),
             tray: None,
             app_menu: None,
-            status: None,
+            notice: None,
+            pending_show: None,
         };
         os::set_accessory(!single_shot);
         os::set_app_icon();
@@ -158,7 +171,7 @@ impl MyApp {
         let manager = match GlobalHotKeyManager::new() {
             Ok(m) => m,
             Err(err) => {
-                self.status = Some(format!("hotkeys unavailable: {err}"));
+                self.push_notice(format!("hotkeys unavailable: {err}"));
                 return;
             }
         };
@@ -188,6 +201,50 @@ impl MyApp {
 
     fn strings(&self) -> &'static i18n::Strings {
         i18n::t(self.config.ui_lang(), &self.os_langs)
+    }
+
+    fn push_notice(&mut self, text: impl Into<String>) {
+        let body = text.into();
+        let stamp = os::local_hm();
+        let text = if stamp.is_empty() {
+            body
+        } else {
+            format!("{stamp}  {body}")
+        };
+        self.notice = Some(Notice {
+            text,
+            shown_at: Instant::now(),
+        });
+    }
+
+    fn expire_notice(&mut self, ctx: &egui::Context) {
+        let Some(notice) = &self.notice else {
+            return;
+        };
+        let elapsed = notice.shown_at.elapsed();
+        if elapsed >= NOTICE_TTL {
+            self.notice = None;
+        } else {
+            ctx.request_repaint_after(NOTICE_TTL.saturating_sub(elapsed));
+        }
+    }
+
+    fn take_pending_show(&mut self, ctx: &egui::Context) {
+        let Some((_, at)) = &self.pending_show else {
+            return;
+        };
+        let wait = Duration::from_millis(50);
+        if at.elapsed() < wait {
+            ctx.request_repaint_after(wait.saturating_sub(at.elapsed()));
+            return;
+        }
+        let Some((pending, _)) = self.pending_show.take() else {
+            return;
+        };
+        match pending {
+            PendingShow::Empty => self.open_empty_window(),
+            PendingShow::Task(id) => self.launch_task(&id),
+        }
     }
 
     fn install_tray(&mut self) {
@@ -250,7 +307,7 @@ impl MyApp {
                 });
             }
             Err(err) => {
-                self.status = Some(format!("tray unavailable: {err}"));
+                self.push_notice(format!("tray unavailable: {err}"));
             }
         }
     }
@@ -288,7 +345,7 @@ impl MyApp {
                 self.install_hotkeys();
                 self.install_tray();
                 self.install_app_menu();
-                self.status = Some(self.strings().config_reloaded.into());
+                self.push_notice(self.strings().config_reloaded);
             }
             Err(err) => self.error = Some(err.to_string()),
         }
@@ -372,8 +429,9 @@ impl MyApp {
     }
 
     fn copy_output(&mut self) {
-        if let Err(err) = os::write_clipboard(&self.output) {
-            self.status = Some(err);
+        match os::write_clipboard(&self.output) {
+            Ok(()) => self.push_notice(self.strings().copied),
+            Err(err) => self.push_notice(err),
         }
     }
 
@@ -458,7 +516,8 @@ impl MyApp {
                 .find(|(item, _)| event.id == item.id())
                 .map(|(_, id)| id.clone());
             if open_window {
-                self.open_empty_window();
+                self.pending_show = Some((PendingShow::Empty, Instant::now()));
+                ctx.request_repaint_after(Duration::from_millis(50));
                 continue;
             }
             if reload {
@@ -467,14 +526,14 @@ impl MyApp {
             }
             if open_config {
                 if let Err(err) = os::open_path(&self.config_path) {
-                    self.status = Some(err);
+                    self.push_notice(err);
                 }
                 continue;
             }
             if settings {
                 match settings::spawn_settings(&self.config_path) {
-                    Ok(()) => self.status = Some("Opened Settings".into()),
-                    Err(err) => self.status = Some(err),
+                    Ok(()) => self.push_notice(self.strings().opened_settings),
+                    Err(err) => self.push_notice(err),
                 }
                 continue;
             }
@@ -484,7 +543,8 @@ impl MyApp {
                         self.source_pid = Some(pid);
                     }
                 }
-                self.launch_task(&id);
+                self.pending_show = Some((PendingShow::Task(id), Instant::now()));
+                ctx.request_repaint_after(Duration::from_millis(50));
             }
         }
     }
@@ -520,7 +580,9 @@ impl MyApp {
             self.awaiting_first_token = false;
             if self.auto_copy && self.error.is_none() && !self.output.is_empty() {
                 if let Err(err) = os::write_clipboard(&self.output) {
-                    self.status = Some(err);
+                    self.push_notice(err);
+                } else {
+                    self.push_notice(self.strings().copied);
                 }
             }
         } else {
@@ -589,6 +651,9 @@ impl eframe::App for MyApp {
         os::apply_float_chrome(ctx);
         apply_appearance(ctx, self.appearance);
         apply_opacity(ctx, self.appearance, self.opacity);
+
+        self.take_pending_show(ctx);
+        self.expire_notice(ctx);
 
         if !self.visible {
             if let Some(pid) = os::frontmost_pid() {
@@ -692,8 +757,8 @@ impl eframe::App for MyApp {
                         });
                     });
                 });
-                if let Some(status) = &self.status {
-                    ui.weak(status);
+                if let Some(notice) = &self.notice {
+                    ui.weak(&notice.text);
                 } else if !os::supports_in_process_hotkeys() && !self.single_shot {
                     ui.weak(t.wayland_hint);
                 }
