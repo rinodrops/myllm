@@ -20,6 +20,8 @@ pub struct Strings {
     pub config_reloaded: &'static str,
     pub copied: &'static str,
     pub opened_settings: &'static str,
+    pub translate: &'static str,
+    pub config_created_title: &'static str,
 }
 
 const EN: Strings = Strings {
@@ -39,6 +41,8 @@ const EN: Strings = Strings {
     config_reloaded: "Config reloaded",
     copied: "Copied",
     opened_settings: "Opened Settings",
+    translate: "Translate",
+    config_created_title: "Configuration created",
 };
 
 const JA: Strings = Strings {
@@ -58,6 +62,8 @@ const JA: Strings = Strings {
     config_reloaded: "設定を再読み込みしました",
     copied: "コピーしました",
     opened_settings: "設定を開きました",
+    translate: "翻訳",
+    config_created_title: "設定ファイルを作成しました",
 };
 
 pub fn t(config_ui_lang: Option<&str>, os_langs: &[String]) -> &'static Strings {
@@ -157,13 +163,6 @@ pub fn format_hotkey(spec: &str) -> Option<String> {
         }
         parts.push(key);
         Some(parts.join("+"))
-    }
-}
-
-pub fn menu_label(name: &str, hotkey: Option<&str>) -> String {
-    match hotkey.and_then(format_hotkey) {
-        Some(keys) => format!("{name}\t{keys}"),
-        None => name.to_string(),
     }
 }
 

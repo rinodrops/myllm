@@ -8,6 +8,7 @@ use eframe::egui::{self, Align, Color32, Layout, RichText, ScrollArea, TextEdit,
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use myllm_core::{stream_run, Appearance, Config, EmptyWindowTask, ResolvedRun};
+use tray_icon::menu::accelerator::Accelerator;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
@@ -16,6 +17,7 @@ use crate::fonts;
 use crate::i18n;
 use crate::os;
 use crate::settings;
+use crate::window_state;
 
 const OPEN_WINDOW: &str = "open_window";
 const NOTICE_TTL: Duration = Duration::from_millis(2500);
@@ -87,6 +89,8 @@ pub struct MyApp {
     app_menu: Option<AppMenuBits>,
     notice: Option<Notice>,
     pending_show: Option<(PendingShow, Instant)>,
+    last_pos: Option<egui::Pos2>,
+    pos_dirty_at: Option<Instant>,
 }
 
 impl MyApp {
@@ -133,6 +137,8 @@ impl MyApp {
             app_menu: None,
             notice: None,
             pending_show: None,
+            last_pos: None,
+            pos_dirty_at: None,
         };
         os::set_accessory(!single_shot);
         os::set_app_icon();
@@ -252,25 +258,32 @@ impl MyApp {
         let t = self.strings();
         let menu = Menu::new();
         let open_window = MenuItem::new(
-            i18n::menu_label(t.open_window, self.config.open_hotkey()),
+            t.open_window,
             true,
-            None,
+            self.config.open_hotkey().and_then(parse_accelerator),
         );
         let _ = menu.append(&open_window);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let mut tasks = Vec::new();
         for (id, task) in &self.config.tasks {
             let name = task.name.clone().unwrap_or_else(|| id.clone());
-            let label = i18n::menu_label(&name, task.hotkey.as_deref());
-            let item = MenuItem::new(&label, true, None);
+            let item = MenuItem::new(
+                &name,
+                true,
+                task.hotkey.as_deref().and_then(parse_accelerator),
+            );
             let _ = menu.append(&item);
             tasks.push((item, id.clone()));
         }
         if self.config.translation().enabled {
             let item = MenuItem::new(
-                i18n::menu_label("Translate", self.config.translation().hotkey.as_deref()),
+                t.translate,
                 true,
-                None,
+                self.config
+                    .translation()
+                    .hotkey
+                    .as_deref()
+                    .and_then(parse_accelerator),
             );
             let _ = menu.append(&item);
             tasks.push((item, "translate".into()));
@@ -610,14 +623,81 @@ impl MyApp {
     }
 
     fn hide_window(&mut self, ctx: &egui::Context) {
+        self.save_position(ctx);
         self.visible = false;
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         os::set_accessory(true);
     }
 
     fn request_quit(&mut self, ctx: &egui::Context) {
+        self.save_position(ctx);
         self.quitting = true;
         ctx.send_viewport_cmd(ViewportCommand::Close);
+    }
+
+    fn save_position(&mut self, ctx: &egui::Context) {
+        if let Some(rect) = ctx.input(|i| i.viewport().outer_rect) {
+            window_state::save(rect.min);
+            self.last_pos = Some(rect.min);
+            self.pos_dirty_at = None;
+        } else if let Some(pos) = self.last_pos {
+            window_state::save(pos);
+            self.pos_dirty_at = None;
+        }
+    }
+
+    fn track_position(&mut self, ctx: &egui::Context) {
+        if !self.visible {
+            return;
+        }
+        let Some(rect) = ctx.input(|i| i.viewport().outer_rect) else {
+            return;
+        };
+        let pos = rect.min;
+        let moved = self
+            .last_pos
+            .map(|prev| (prev - pos).length() > 1.0)
+            .unwrap_or(true);
+        if moved {
+            self.last_pos = Some(pos);
+            self.pos_dirty_at = Some(Instant::now());
+        }
+        let Some(at) = self.pos_dirty_at else {
+            return;
+        };
+        let wait = Duration::from_millis(400);
+        if at.elapsed() >= wait {
+            window_state::save(pos);
+            self.pos_dirty_at = None;
+        } else {
+            ctx.request_repaint_after(wait.saturating_sub(at.elapsed()));
+        }
+    }
+
+    fn handle_window_keys(&mut self, ctx: &egui::Context) {
+        if !self.visible || self.quitting {
+            return;
+        }
+        let cmd = ctx.input(|i| i.modifiers.mac_cmd || i.modifiers.command);
+        if !cmd {
+            return;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+            self.run_selected();
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::W)) {
+            self.hide_or_quit(ctx);
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::C)) {
+            let already_copied = ctx.output(|o| {
+                o.commands.iter().any(
+                    |cmd| matches!(cmd, egui::OutputCommand::CopyText(text) if !text.is_empty()),
+                )
+            });
+            if !already_copied {
+                self.copy_output();
+            }
+        }
     }
 
     fn hide_or_quit(&mut self, ctx: &egui::Context) {
@@ -633,6 +713,7 @@ impl MyApp {
     }
 
     fn task_choices(&self) -> Vec<(String, String)> {
+        let t = self.strings();
         let mut choices: Vec<(String, String)> = self
             .config
             .tasks
@@ -640,7 +721,7 @@ impl MyApp {
             .map(|(id, task)| (id.clone(), task.name.clone().unwrap_or_else(|| id.clone())))
             .collect();
         if self.config.translation().enabled {
-            choices.push(("translate".into(), "Translate".into()));
+            choices.push(("translate".into(), t.translate.to_string()));
         }
         choices
     }
@@ -702,7 +783,7 @@ impl eframe::App for MyApp {
         let t = self.strings();
 
         if self.config_created && self.visible {
-            egui::Window::new("Configuration created")
+            egui::Window::new(t.config_created_title)
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.label(format!(
@@ -719,8 +800,14 @@ impl eframe::App for MyApp {
         let busy = self.is_busy();
         let can_run = self.can_run();
         let choices = self.task_choices();
-        let selected_label = self.config.task_label(&self.selected_task);
+        let selected_label = if self.selected_task == "translate" {
+            t.translate.to_string()
+        } else {
+            self.config.task_label(&self.selected_task)
+        };
         let backend = self.config.backend_label(&self.selected_task);
+        let run_tip = shortcut_tip(t.run, "cmd+r");
+        let copy_tip = shortcut_tip(t.copy, "cmd+c");
 
         egui::TopBottomPanel::bottom("actions")
             .show_separator_line(false)
@@ -729,11 +816,11 @@ impl eframe::App for MyApp {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if pill_button(ui, t.copy).clicked() {
+                        if pill_button(ui, t.copy).on_hover_text(&copy_tip).clicked() {
                             self.copy_output();
                         }
                         ui.add_enabled_ui(can_run, |ui| {
-                            if pill_button(ui, t.run).clicked() {
+                            if pill_button(ui, t.run).on_hover_text(&run_tip).clicked() {
                                 self.run_selected();
                             }
                         });
@@ -821,6 +908,8 @@ impl eframe::App for MyApp {
                     },
                 );
             });
+        self.handle_window_keys(ctx);
+        self.track_position(ctx);
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -997,6 +1086,44 @@ fn parse_hotkey(spec: &str) -> Option<HotKey> {
         };
     }
     Some(HotKey::new(Some(mods), parse_code(key)?))
+}
+
+fn parse_accelerator(spec: &str) -> Option<Accelerator> {
+    let mut normalized = String::new();
+    for (i, part) in spec
+        .split('+')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .enumerate()
+    {
+        if i > 0 {
+            normalized.push('+');
+        }
+        match part.to_ascii_lowercase().as_str() {
+            "win" | "windows" | "super" | "meta" => normalized.push_str("cmd"),
+            other => normalized.push_str(other),
+        }
+    }
+    normalized.parse().ok()
+}
+
+#[cfg(test)]
+mod accel_tests {
+    use super::parse_accelerator;
+
+    #[test]
+    fn parses_cmd_shift_p() {
+        assert!(parse_accelerator("cmd+shift+p").is_some());
+        assert!(parse_accelerator("ctrl+cmd+b").is_some());
+        assert!(parse_accelerator("not-a-key").is_none());
+    }
+}
+
+fn shortcut_tip(action: &str, spec: &str) -> String {
+    match i18n::format_hotkey(spec) {
+        Some(keys) => format!("{action}  {keys}"),
+        None => action.to_string(),
+    }
 }
 
 fn parse_code(key: &str) -> Option<Code> {

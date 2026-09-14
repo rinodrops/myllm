@@ -2321,6 +2321,7 @@ name = "myllm"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "dirs",
  "eframe",
  "egui",
  "global-hotkey",
