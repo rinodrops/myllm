@@ -35,6 +35,22 @@ pub enum TranslationEngine {
     Custom,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EmptyWindowTask {
+    #[default]
+    Last,
+    Default,
+}
+
+impl EmptyWindowTask {
+    pub fn parse(raw: Option<&str>) -> Self {
+        match raw.map(|s| s.trim()) {
+            Some("default") => Self::Default,
+            _ => Self::Last,
+        }
+    }
+}
+
 impl TranslationEngine {
     pub fn parse(raw: Option<&str>) -> Self {
         match raw.map(|s| s.trim()) {
@@ -62,6 +78,11 @@ pub struct General {
     pub keep_alive: String,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
+    pub default_task: Option<String>,
+    pub empty_window_task: Option<String>,
+    pub open_hotkey: Option<String>,
+    #[serde(default)]
+    pub capture_selection: bool,
 }
 
 impl Default for General {
@@ -72,6 +93,10 @@ impl Default for General {
             appearance: None,
             keep_alive: default_keep_alive(),
             opacity: default_opacity(),
+            default_task: None,
+            empty_window_task: None,
+            open_hotkey: None,
+            capture_selection: false,
         }
     }
 }
@@ -214,6 +239,63 @@ impl Config {
         self.general.opacity.clamp(0.5, 1.0)
     }
 
+    pub fn capture_selection(&self) -> bool {
+        self.general.capture_selection
+    }
+
+    pub fn empty_window_task(&self) -> EmptyWindowTask {
+        EmptyWindowTask::parse(self.general.empty_window_task.as_deref())
+    }
+
+    pub fn open_hotkey(&self) -> Option<&str> {
+        self.general
+            .open_hotkey
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+
+    pub fn has_task(&self, id: &str) -> bool {
+        if id == TRANSLATE_TASK {
+            return self.translation().enabled;
+        }
+        self.tasks.contains_key(id)
+    }
+
+    pub fn default_task_id(&self) -> String {
+        let configured = self
+            .general
+            .default_task
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if let Some(id) = configured {
+            if self.has_task(id) {
+                return id.to_string();
+            }
+        }
+        if self.has_task("polish") {
+            return "polish".into();
+        }
+        if let Some(id) = self.tasks.keys().next() {
+            return id.clone();
+        }
+        if self.translation().enabled {
+            return TRANSLATE_TASK.to_string();
+        }
+        "polish".into()
+    }
+
+    pub fn task_label(&self, id: &str) -> String {
+        if id == TRANSLATE_TASK {
+            return "Translate".into();
+        }
+        self.tasks
+            .get(id)
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| id.to_string())
+    }
+
     pub fn translation(&self) -> Translation {
         self.translation.clone().unwrap_or_default()
     }
@@ -244,10 +326,7 @@ impl Config {
         let prompt = format!("{instruction}\n\n{input}");
         Ok(ResolvedRun {
             id: id.to_string(),
-            display_name: task
-                .name
-                .clone()
-                .unwrap_or_else(|| title_case(id)),
+            display_name: task.name.clone().unwrap_or_else(|| title_case(id)),
             prompt,
             provider,
             model,
@@ -286,9 +365,7 @@ impl Config {
                 }
             });
         let prompt = match TranslationEngine::parse(tr.engine.as_deref()) {
-            TranslationEngine::TranslateGemma => {
-                translategemma_prompt(&source, &target, input)
-            }
+            TranslationEngine::TranslateGemma => translategemma_prompt(&source, &target, input),
             TranslationEngine::Custom => {
                 let instruction = tr.instruction.as_deref().unwrap_or("").trim();
                 if instruction.is_empty() {
@@ -636,7 +713,8 @@ instruction = "Custom {SOURCE_CODE}->{TARGET_CODE}: {TEXT}"
         assert_eq!(run.model, "translategemma:12b");
         assert!(run.prompt.contains("English (en) to Japanese (ja)"));
         assert!(
-            run.prompt.contains("into Japanese:\n\n\nHello world, this is English."),
+            run.prompt
+                .contains("into Japanese:\n\n\nHello world, this is English."),
             "{}",
             run.prompt
         );
@@ -673,10 +751,7 @@ instruction = "Custom {SOURCE_CODE}->{TARGET_CODE}: {TEXT}"
     fn missing_engine_defaults_to_translategemma() {
         let mut cfg = translation_cfg();
         cfg.translation.as_mut().unwrap().engine = None;
-        assert_eq!(
-            cfg.translation_engine(),
-            TranslationEngine::TranslateGemma
-        );
+        assert_eq!(cfg.translation_engine(), TranslationEngine::TranslateGemma);
     }
 
     #[test]
@@ -704,5 +779,44 @@ default_model = "llama3.2"
         assert!((cfg.opacity() - 0.5).abs() < f32::EPSILON);
         cfg.general.opacity = 1.4;
         assert!((cfg.opacity() - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn missing_capture_selection_defaults_false() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+[providers.ollama]
+default_model = "llama3.2"
+"#,
+        );
+        assert!(!cfg.capture_selection());
+        assert_eq!(cfg.empty_window_task(), EmptyWindowTask::Last);
+        assert_eq!(cfg.default_task_id(), "translate");
+        assert!(cfg.open_hotkey().is_none());
+    }
+
+    #[test]
+    fn default_task_falls_back_when_missing_or_unknown() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+default_task = "missing"
+[providers.ollama]
+default_model = "llama3.2"
+[tasks.summarize]
+instruction = "Sum"
+"#,
+        );
+        assert_eq!(cfg.default_task_id(), "summarize");
+        assert_eq!(cfg.task_label("summarize"), "summarize");
+        assert_eq!(
+            EmptyWindowTask::parse(Some("default")),
+            EmptyWindowTask::Default
+        );
+        assert_eq!(EmptyWindowTask::parse(Some("last")), EmptyWindowTask::Last);
+        assert_eq!(EmptyWindowTask::parse(None), EmptyWindowTask::Last);
     }
 }

@@ -6,7 +6,8 @@ pub mod lang;
 pub mod provider;
 
 pub use config::{
-    config_file_path, Appearance, Config, ResolvedRun, TranslationEngine, TRANSLATE_TASK,
+    config_file_path, Appearance, Config, EmptyWindowTask, ResolvedRun, TranslationEngine,
+    TRANSLATE_TASK,
 };
 pub use error::{Error, Result};
 pub use provider::stream_run;
