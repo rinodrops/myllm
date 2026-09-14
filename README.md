@@ -50,7 +50,7 @@ Version tags (`v*`) run the same recipe on GitHub Actions. Unsigned `just instal
 
 The config file is `${XDG_CONFIG_HOME:-$HOME/.config}/myllm/config.toml`. A starter file is copied on first launch from [`config/config.toml`](config/config.toml).
 
-Settings are edited by spawning the separate [Settings](https://github.com/rinodrops/settings) process. This repository owns `schema.toml`; it does not vendor Settings source.
+This repository owns `schema.toml`; it does not vendor Settings source.
 
 ## License
 
