@@ -9,6 +9,7 @@ version := `awk -F'"' '/^version *=/{print $2; exit}' Cargo.toml`
 
 rust_target_arm64 := "aarch64-apple-darwin"
 icon_src := "crates/myllm/assets/appicon.png"
+settings_repo := "../settings"
 
 default: help
 
@@ -47,8 +48,27 @@ _darwin-bundle arch rust_target:
     mkdir -p "dist/{{arch}}/{{app_name}}.app/Contents/Resources"
     cp "target/release/{{exe_name}}" \
         "dist/{{arch}}/{{app_name}}.app/Contents/MacOS/{{exe_name}}"
+    just _bundle-settings \
+        "dist/{{arch}}/{{app_name}}.app/Contents/MacOS/settings"
     just _plist "dist/{{arch}}/{{app_name}}.app/Contents"
     just _icns "dist/{{arch}}/{{app_name}}.app/Contents/Resources/AppIcon.icns"
+
+[macos]
+_bundle-settings dest:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "{{settings_repo}}/Justfile" ]; then
+        echo "error: Settings clone not found at {{settings_repo}}"
+        echo "Clone https://github.com/rinodrops/settings as a sibling of this repository."
+        exit 1
+    fi
+    ROOT="$(pwd)"
+    (
+        cd "{{settings_repo}}"
+        SETTINGS_SCHEMA="${ROOT}/schema.toml" just binary
+    )
+    cp "{{settings_repo}}/target/release/settings" "{{dest}}"
+    chmod +x "{{dest}}"
 
 [macos]
 _plist contents_dir:
