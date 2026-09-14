@@ -93,6 +93,8 @@ pub struct MyApp {
     pending_show: Option<(PendingShow, Instant)>,
     last_pos: Option<egui::Pos2>,
     pos_dirty_at: Option<Instant>,
+    settings_child: Option<std::process::Child>,
+    settings_mtime: Option<std::time::SystemTime>,
 }
 
 impl MyApp {
@@ -141,6 +143,8 @@ impl MyApp {
             pending_show: None,
             last_pos: None,
             pos_dirty_at: None,
+            settings_child: None,
+            settings_mtime: None,
         };
         os::set_accessory(!single_shot);
         os::set_app_icon();
@@ -396,6 +400,56 @@ impl MyApp {
         }
     }
 
+    fn settings_running(&mut self) -> bool {
+        match self.settings_child.as_mut().map(|child| child.try_wait()) {
+            None => false,
+            Some(Ok(None)) => true,
+            Some(_) => {
+                self.settings_child = None;
+                false
+            }
+        }
+    }
+
+    fn open_settings(&mut self, ctx: &egui::Context) {
+        if self.settings_running() {
+            return;
+        }
+        match settings::spawn_settings(&self.config_path) {
+            Ok(child) => {
+                self.settings_mtime = settings::config_mtime(&self.config_path);
+                self.settings_child = Some(child);
+                ctx.request_repaint_after(Duration::from_millis(400));
+            }
+            Err(err) => self.push_notice(err),
+        }
+    }
+
+    fn poll_settings(&mut self, ctx: &egui::Context) {
+        let done = match self.settings_child.as_mut().map(|child| child.try_wait()) {
+            None => return,
+            Some(Ok(None)) => {
+                ctx.request_repaint_after(Duration::from_millis(400));
+                return;
+            }
+            Some(Ok(Some(_))) => true,
+            Some(Err(_)) => {
+                self.settings_child = None;
+                self.settings_mtime = None;
+                return;
+            }
+        };
+        if !done {
+            return;
+        }
+        self.settings_child = None;
+        let now = settings::config_mtime(&self.config_path);
+        if now != self.settings_mtime {
+            self.reload_config(ctx);
+        }
+        self.settings_mtime = None;
+    }
+
     fn launch_task(&mut self, task_id: &str) {
         if self.is_busy() {
             return;
@@ -576,9 +630,7 @@ impl MyApp {
                 continue;
             }
             if settings {
-                if let Err(err) = settings::spawn_settings(&self.config_path) {
-                    self.push_notice(err);
-                }
+                self.open_settings(ctx);
                 continue;
             }
             if let Some(id) = task_id {
@@ -795,6 +847,7 @@ impl eframe::App for MyApp {
 
         self.poll_hotkeys();
         self.poll_tray(ctx);
+        self.poll_settings(ctx);
         self.poll_stream(ctx);
 
         if os::take_app_menu_quit() {
