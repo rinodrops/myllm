@@ -824,8 +824,8 @@ impl MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        os::apply_float_chrome(ctx);
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        os::apply_float_chrome(ctx, frame);
         apply_appearance(ctx, self.appearance);
         apply_opacity(ctx, self.appearance, self.opacity);
 

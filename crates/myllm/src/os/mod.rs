@@ -22,12 +22,17 @@ pub fn supports_in_process_hotkeys() -> bool {
     }
 }
 
-pub fn apply_float_chrome(ctx: &egui::Context) {
+pub fn apply_float_chrome(ctx: &egui::Context, frame: &eframe::Frame) {
     #[cfg(target_os = "macos")]
     macos::apply_float_chrome();
     #[cfg(target_os = "windows")]
-    windows::apply_tool_window(ctx);
-    let _ = ctx;
+    {
+        use raw_window_handle::HasWindowHandle;
+        if let Ok(handle) = frame.window_handle() {
+            windows::apply_tool_window_handle(handle);
+        }
+    }
+    let _ = (ctx, frame);
 }
 
 pub fn set_accessory(hidden: bool) {
@@ -101,7 +106,11 @@ pub fn preferred_ui_langs() -> Vec<String> {
     {
         macos::preferred_ui_langs()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        windows::preferred_ui_langs()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
             if let Ok(val) = std::env::var(key) {

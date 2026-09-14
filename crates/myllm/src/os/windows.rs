@@ -16,15 +16,46 @@ use super::read_clipboard;
 const VK_C: VIRTUAL_KEY = 0x43;
 
 pub fn local_hm() -> String {
-    String::new()
+    use windows_sys::Win32::Foundation::SYSTEMTIME;
+    use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+    unsafe {
+        let mut st: SYSTEMTIME = zeroed();
+        GetLocalTime(&mut st);
+        format!("{:02}:{:02}", st.wHour, st.wMinute)
+    }
 }
 
-pub fn apply_tool_window(_ctx: &egui::Context) {
-    let hwnd = unsafe { GetForegroundWindow() };
-    if hwnd.is_null() {
-        return;
+pub fn preferred_ui_langs() -> Vec<String> {
+    use windows_sys::Win32::Foundation::FALSE;
+    use windows_sys::Win32::Globalization::GetUserPreferredUILanguages;
+    const MUI_LANGUAGE_NAME: u32 = 0x08;
+    unsafe {
+        let mut num_langs: u32 = 0;
+        let mut buf_size: u32 = 0;
+        GetUserPreferredUILanguages(
+            MUI_LANGUAGE_NAME,
+            &mut num_langs,
+            std::ptr::null_mut(),
+            &mut buf_size,
+        );
+        if buf_size == 0 {
+            return Vec::new();
+        }
+        let mut buf: Vec<u16> = vec![0u16; buf_size as usize];
+        let ok = GetUserPreferredUILanguages(
+            MUI_LANGUAGE_NAME,
+            &mut num_langs,
+            buf.as_mut_ptr(),
+            &mut buf_size,
+        );
+        if ok == FALSE {
+            return Vec::new();
+        }
+        buf.split(|&c| c == 0)
+            .filter(|segment| !segment.is_empty())
+            .map(|segment| String::from_utf16_lossy(segment))
+            .collect()
     }
-    set_tool_style(hwnd);
 }
 
 pub fn apply_tool_window_handle(handle: WindowHandle<'_>) {

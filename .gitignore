@@ -1,4 +1,5 @@
 /target
 /dist
+/crates/myllm/assets/appicon.ico
 .DS_Store
 *.swp
