@@ -38,11 +38,13 @@ just install   # dist/darwin-arm64/My LLM.app → /Applications
 
 `just darwin-build-arm64` only writes the bundle under `dist/`. Signing and notarization are not included yet.
 
+The macOS `.app` embeds a [Settings](https://github.com/rinodrops/settings) binary built with this repository's [`schema.toml`](schema.toml). Clone Settings as a sibling of this repository (`../settings`) before `just install`. After install, tray **Settings…** opens that binary against the user config. `just dev` does not copy Settings beside `target/debug/myllm`, so the tray item stays disabled there.
+
 ## Configuration
 
 The config file is `${XDG_CONFIG_HOME:-$HOME/.config}/myllm/config.toml`. A starter file is copied on first launch from [`config/config.toml`](config/config.toml).
 
-Settings are edited by spawning the separate [Settings](https://github.com/rinodrops/settings) process. This repository owns `schema.toml`; it does not vendor Settings source.
+This repository owns `schema.toml`; it does not vendor Settings source.
 
 ## License
 
