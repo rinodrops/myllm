@@ -12,9 +12,9 @@ pub const TRANSLATE_TASK: &str = "translate";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Appearance {
-    #[default]
     Dark,
     Light,
+    #[default]
     System,
 }
 
@@ -22,8 +22,8 @@ impl Appearance {
     pub fn parse(raw: Option<&str>) -> Self {
         match raw.map(|s| s.trim()) {
             Some("light") => Self::Light,
-            Some("system") => Self::System,
-            _ => Self::Dark,
+            Some("dark") => Self::Dark,
+            _ => Self::System,
         }
     }
 }
@@ -33,6 +33,22 @@ pub enum TranslationEngine {
     #[default]
     TranslateGemma,
     Custom,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EmptyWindowTask {
+    #[default]
+    Last,
+    Default,
+}
+
+impl EmptyWindowTask {
+    pub fn parse(raw: Option<&str>) -> Self {
+        match raw.map(|s| s.trim()) {
+            Some("default") => Self::Default,
+            _ => Self::Last,
+        }
+    }
 }
 
 impl TranslationEngine {
@@ -60,6 +76,14 @@ pub struct General {
     pub appearance: Option<String>,
     #[serde(default = "default_keep_alive")]
     pub keep_alive: String,
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+    pub default_task: Option<String>,
+    pub empty_window_task: Option<String>,
+    pub open_hotkey: Option<String>,
+    #[serde(default)]
+    pub capture_selection: bool,
+    pub ui_lang: Option<String>,
 }
 
 impl Default for General {
@@ -69,6 +93,12 @@ impl Default for General {
             auto_copy: default_true(),
             appearance: None,
             keep_alive: default_keep_alive(),
+            opacity: default_opacity(),
+            default_task: None,
+            empty_window_task: None,
+            open_hotkey: None,
+            capture_selection: false,
+            ui_lang: None,
         }
     }
 }
@@ -83,6 +113,10 @@ fn default_true() -> Option<bool> {
 
 fn default_keep_alive() -> String {
     "5m".to_string()
+}
+
+fn default_opacity() -> f32 {
+    0.92
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -203,6 +237,91 @@ impl Config {
         Appearance::parse(self.general.appearance.as_deref())
     }
 
+    pub fn opacity(&self) -> f32 {
+        self.general.opacity.clamp(0.5, 1.0)
+    }
+
+    pub fn capture_selection(&self) -> bool {
+        self.general.capture_selection
+    }
+
+    pub fn ui_lang(&self) -> Option<&str> {
+        self.general
+            .ui_lang
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+
+    pub fn backend_label(&self, task_id: &str) -> Option<(String, String)> {
+        if task_id == TRANSLATE_TASK {
+            let tr = self.translation();
+            if !tr.enabled {
+                return None;
+            }
+            let provider = self.resolve_provider_name(tr.provider.as_deref()).ok()?;
+            let model = self.resolve_model(tr.model.as_deref(), &provider).ok()?;
+            return Some((provider, model));
+        }
+        let task = self.tasks.get(task_id)?;
+        let provider = self.resolve_provider_name(task.provider.as_deref()).ok()?;
+        let model = self.resolve_model(task.model.as_deref(), &provider).ok()?;
+        Some((provider, model))
+    }
+
+    pub fn empty_window_task(&self) -> EmptyWindowTask {
+        EmptyWindowTask::parse(self.general.empty_window_task.as_deref())
+    }
+
+    pub fn open_hotkey(&self) -> Option<&str> {
+        self.general
+            .open_hotkey
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+
+    pub fn has_task(&self, id: &str) -> bool {
+        if id == TRANSLATE_TASK {
+            return self.translation().enabled;
+        }
+        self.tasks.contains_key(id)
+    }
+
+    pub fn default_task_id(&self) -> String {
+        let configured = self
+            .general
+            .default_task
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if let Some(id) = configured {
+            if self.has_task(id) {
+                return id.to_string();
+            }
+        }
+        if self.has_task("polish") {
+            return "polish".into();
+        }
+        if let Some(id) = self.tasks.keys().next() {
+            return id.clone();
+        }
+        if self.translation().enabled {
+            return TRANSLATE_TASK.to_string();
+        }
+        "polish".into()
+    }
+
+    pub fn task_label(&self, id: &str) -> String {
+        if id == TRANSLATE_TASK {
+            return "Translate".into();
+        }
+        self.tasks
+            .get(id)
+            .and_then(|t| t.name.clone())
+            .unwrap_or_else(|| id.to_string())
+    }
+
     pub fn translation(&self) -> Translation {
         self.translation.clone().unwrap_or_default()
     }
@@ -233,10 +352,7 @@ impl Config {
         let prompt = format!("{instruction}\n\n{input}");
         Ok(ResolvedRun {
             id: id.to_string(),
-            display_name: task
-                .name
-                .clone()
-                .unwrap_or_else(|| title_case(id)),
+            display_name: task.name.clone().unwrap_or_else(|| title_case(id)),
             prompt,
             provider,
             model,
@@ -275,9 +391,7 @@ impl Config {
                 }
             });
         let prompt = match TranslationEngine::parse(tr.engine.as_deref()) {
-            TranslationEngine::TranslateGemma => {
-                translategemma_prompt(&source, &target, input)
-            }
+            TranslationEngine::TranslateGemma => translategemma_prompt(&source, &target, input),
             TranslationEngine::Custom => {
                 let instruction = tr.instruction.as_deref().unwrap_or("").trim();
                 if instruction.is_empty() {
@@ -625,7 +739,8 @@ instruction = "Custom {SOURCE_CODE}->{TARGET_CODE}: {TEXT}"
         assert_eq!(run.model, "translategemma:12b");
         assert!(run.prompt.contains("English (en) to Japanese (ja)"));
         assert!(
-            run.prompt.contains("into Japanese:\n\n\nHello world, this is English."),
+            run.prompt
+                .contains("into Japanese:\n\n\nHello world, this is English."),
             "{}",
             run.prompt
         );
@@ -662,9 +777,108 @@ instruction = "Custom {SOURCE_CODE}->{TARGET_CODE}: {TEXT}"
     fn missing_engine_defaults_to_translategemma() {
         let mut cfg = translation_cfg();
         cfg.translation.as_mut().unwrap().engine = None;
-        assert_eq!(
-            cfg.translation_engine(),
-            TranslationEngine::TranslateGemma
+        assert_eq!(cfg.translation_engine(), TranslationEngine::TranslateGemma);
+    }
+
+    #[test]
+    fn missing_appearance_follows_system() {
+        assert_eq!(Appearance::parse(None), Appearance::System);
+        assert_eq!(Appearance::parse(Some("system")), Appearance::System);
+        assert_eq!(Appearance::parse(Some("dark")), Appearance::Dark);
+        assert_eq!(Appearance::parse(Some("light")), Appearance::Light);
+        assert_eq!(Appearance::default(), Appearance::System);
+    }
+
+    #[test]
+    fn missing_opacity_defaults_and_clamps() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+[providers.ollama]
+default_model = "llama3.2"
+"#,
         );
+        assert!((cfg.opacity() - 0.92).abs() < f32::EPSILON);
+        let mut cfg = cfg;
+        cfg.general.opacity = 0.2;
+        assert!((cfg.opacity() - 0.5).abs() < f32::EPSILON);
+        cfg.general.opacity = 1.4;
+        assert!((cfg.opacity() - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn missing_capture_selection_defaults_false() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+[providers.ollama]
+default_model = "llama3.2"
+"#,
+        );
+        assert!(!cfg.capture_selection());
+        assert_eq!(cfg.empty_window_task(), EmptyWindowTask::Last);
+        assert_eq!(cfg.default_task_id(), "translate");
+        assert!(cfg.open_hotkey().is_none());
+    }
+
+    #[test]
+    fn default_task_falls_back_when_missing_or_unknown() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+default_task = "missing"
+[providers.ollama]
+default_model = "llama3.2"
+[tasks.summarize]
+instruction = "Sum"
+"#,
+        );
+        assert_eq!(cfg.default_task_id(), "summarize");
+        assert_eq!(cfg.task_label("summarize"), "summarize");
+        assert_eq!(
+            EmptyWindowTask::parse(Some("default")),
+            EmptyWindowTask::Default
+        );
+        assert_eq!(EmptyWindowTask::parse(Some("last")), EmptyWindowTask::Last);
+        assert_eq!(EmptyWindowTask::parse(None), EmptyWindowTask::Last);
+    }
+
+    #[test]
+    fn backend_label_does_not_need_an_api_key() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "openai"
+[providers.openai]
+default_model = "gpt-4o"
+api_key_env = "MYLLM_OPENAI_API_KEY"
+[tasks.polish]
+instruction = "Fix"
+"#,
+        );
+        assert_eq!(
+            cfg.backend_label("polish"),
+            Some(("openai".into(), "gpt-4o".into()))
+        );
+        assert!(cfg.ui_lang().is_none());
+    }
+
+    #[test]
+    fn ui_lang_os_is_kept() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+ui_lang = "os"
+[providers.ollama]
+default_model = "llama3.2"
+[tasks.polish]
+instruction = "Fix"
+"#,
+        );
+        assert_eq!(cfg.ui_lang(), Some("os"));
     }
 }

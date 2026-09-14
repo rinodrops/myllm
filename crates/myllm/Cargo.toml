@@ -14,17 +14,32 @@ egui = "0.32"
 global-hotkey = "0.7"
 myllm-core = { path = "../myllm-core" }
 raw-window-handle = "0.6"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
 tray-icon = "0.21"
+dirs = "6"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [
     "NSApplication",
+    "NSColor",
+    "NSImage",
     "NSRunningApplication",
     "NSWindow",
     "NSWorkspace",
 ] }
-objc2-foundation = { version = "0.3", features = ["NSString"] }
+objc2-foundation = { version = "0.3", features = [
+    "NSArray",
+    "NSData",
+    "NSDictionary",
+    "NSLocale",
+    "NSNotification",
+    "NSString",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = [

@@ -1,11 +1,20 @@
+use std::cell::RefCell;
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use objc2::rc::Retained;
+use objc2::runtime::{NSObject, Sel};
+use objc2::{define_class, msg_send, sel, AnyThread};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSWindow,
-    NSWindowCollectionBehavior, NSWorkspace,
+    NSApplication, NSApplicationActivationPolicy, NSColor, NSImage, NSRunningApplication, NSWindow,
+    NSWindowCollectionBehavior, NSWindowStyleMask, NSWindowTitleVisibility, NSWorkspace,
 };
-use objc2_foundation::MainThreadMarker;
+use objc2_foundation::{
+    MainThreadMarker, NSData, NSLocale, NSNotification, NSNotificationCenter, NSString,
+};
+
+use crate::assets;
 
 use super::read_clipboard;
 
@@ -31,6 +40,65 @@ const HID_SYSTEM_STATE: u32 = 1;
 const COMMAND_FLAG: u64 = 0x0008_0000;
 const KEY_C: u16 = 0x08;
 
+static APP_MENU_QUIT: AtomicBool = AtomicBool::new(false);
+
+thread_local! {
+    static QUIT_WATCH: RefCell<Option<Retained<QuitWatch>>> = const { RefCell::new(None) };
+}
+
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[name = "MyLlmQuitWatch"]
+    #[ivars = ()]
+    struct QuitWatch;
+
+    impl QuitWatch {
+        #[unsafe(method(onMenuAction:))]
+        fn on_menu_action(&self, notification: &NSNotification) {
+            mark_quit_if_terminate(notification);
+        }
+    }
+);
+
+impl QuitWatch {
+    fn new() -> Retained<Self> {
+        unsafe { msg_send![super(Self::alloc().set_ivars(())), init] }
+    }
+}
+
+fn mark_quit_if_terminate(notification: &NSNotification) {
+    let Some(info) = notification.userInfo() else {
+        return;
+    };
+    let key = NSString::from_str("MenuItem");
+    let Some(item) = info.objectForKey(&key) else {
+        return;
+    };
+    let action: Option<Sel> = unsafe { msg_send![&*item, action] };
+    if action == Some(sel!(terminate:)) {
+        APP_MENU_QUIT.store(true, Ordering::SeqCst);
+    }
+}
+
+pub fn install_quit_watch() {
+    QUIT_WATCH.with(|slot| {
+        if slot.borrow().is_some() {
+            return;
+        }
+        let watch = QuitWatch::new();
+        let center = NSNotificationCenter::defaultCenter();
+        let name = NSString::from_str("NSMenuDidSendActionNotification");
+        unsafe {
+            center.addObserver_selector_name_object(&watch, sel!(onMenuAction:), Some(&name), None);
+        }
+        *slot.borrow_mut() = Some(watch);
+    });
+}
+
+pub fn take_app_menu_quit() -> bool {
+    APP_MENU_QUIT.swap(false, Ordering::SeqCst)
+}
+
 pub fn set_accessory(hidden: bool) {
     let Some(mtm) = MainThreadMarker::new() else {
         return;
@@ -42,6 +110,29 @@ pub fn set_accessory(hidden: bool) {
         NSApplicationActivationPolicy::Regular
     };
     let _ = app.setActivationPolicy(policy);
+    if !hidden {
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
+    }
+}
+
+pub fn set_app_icon() {
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let data = NSData::with_bytes(assets::APP_ICON_PNG);
+    let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) else {
+        return;
+    };
+    let app = NSApplication::sharedApplication(mtm);
+    unsafe { app.setApplicationIconImage(Some(&image)) };
+}
+
+pub fn preferred_ui_langs() -> Vec<String> {
+    NSLocale::preferredLanguages()
+        .iter()
+        .map(|tag| tag.to_string())
+        .collect()
 }
 
 pub fn apply_float_chrome() {
@@ -55,7 +146,14 @@ pub fn apply_float_chrome() {
     }
 }
 
+fn is_result_window(window: &NSWindow) -> bool {
+    window.class().name().to_bytes() == b"WinitWindow"
+}
+
 fn configure_window(window: &NSWindow) {
+    if !is_result_window(window) {
+        return;
+    }
     window.setLevel(3);
     window.setCollectionBehavior(
         NSWindowCollectionBehavior::CanJoinAllSpaces
@@ -64,6 +162,11 @@ fn configure_window(window: &NSWindow) {
             | NSWindowCollectionBehavior::IgnoresCycle,
     );
     window.setHidesOnDeactivate(false);
+    window.setTitlebarAppearsTransparent(true);
+    window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
+    window.setStyleMask(window.styleMask() | NSWindowStyleMask::FullSizeContentView);
+    window.setOpaque(false);
+    window.setBackgroundColor(Some(&NSColor::clearColor()));
 }
 
 pub fn frontmost_pid() -> Option<u32> {

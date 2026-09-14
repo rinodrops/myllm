@@ -9,8 +9,14 @@
 [general]
 default_provider = "ollama"    # Provider to use when not specified per task
 auto_copy = true               # Automatically copy result to clipboard
-# appearance = "dark"          # Window appearance: dark, light, or system
+appearance = "system"          # Window appearance: system, light, or dark
+opacity = 0.92                 # Result window opacity (0.5–1.0)
 keep_alive = "5m"              # Keep Ollama model loaded this long after use
+default_task = "polish"        # Task id for Open Window when there is no last-run task
+empty_window_task = "last"     # Open Window ComboBox: last | default
+open_hotkey = "cmd+shift+o"    # Empty Input window (no clipboard / selection grab)
+capture_selection = false      # true: send Command/Control+C to the frontmost app
+ui_lang = "os"                 # Chrome language: os, or a whichlang code (en, ja, …)
 
 # ---------------------------------------------------------------------------
 # Providers

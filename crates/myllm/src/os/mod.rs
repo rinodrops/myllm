@@ -36,6 +36,84 @@ pub fn set_accessory(hidden: bool) {
     let _ = hidden;
 }
 
+pub fn set_app_icon() {
+    #[cfg(target_os = "macos")]
+    macos::set_app_icon();
+}
+
+pub fn install_quit_watch() {
+    #[cfg(target_os = "macos")]
+    macos::install_quit_watch();
+}
+
+pub fn take_app_menu_quit() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        macos::take_app_menu_quit()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+pub fn local_hm() -> String {
+    #[cfg(unix)]
+    {
+        unix_local_hm()
+    }
+    #[cfg(windows)]
+    {
+        windows::local_hm()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        String::new()
+    }
+}
+
+#[cfg(unix)]
+fn unix_local_hm() -> String {
+    unsafe {
+        let mut t = 0 as libc::time_t;
+        libc::time(&mut t);
+        let mut tm = std::mem::zeroed();
+        if libc::localtime_r(&t, &mut tm).is_null() {
+            return String::new();
+        }
+        let mut buf = [0u8; 8];
+        let n = libc::strftime(
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+            b"%H:%M\0".as_ptr().cast(),
+            &tm,
+        );
+        if n == 0 {
+            String::new()
+        } else {
+            String::from_utf8_lossy(&buf[..n]).into_owned()
+        }
+    }
+}
+
+pub fn preferred_ui_langs() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::preferred_ui_langs()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+            if let Ok(val) = std::env::var(key) {
+                if !val.trim().is_empty() {
+                    return vec![val];
+                }
+            }
+        }
+        Vec::new()
+    }
+}
+
 pub fn frontmost_pid() -> Option<u32> {
     #[cfg(target_os = "macos")]
     {

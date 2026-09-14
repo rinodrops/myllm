@@ -15,6 +15,10 @@ use super::read_clipboard;
 
 const VK_C: VIRTUAL_KEY = 0x43;
 
+pub fn local_hm() -> String {
+    String::new()
+}
+
 pub fn apply_tool_window(_ctx: &egui::Context) {
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.is_null() {
