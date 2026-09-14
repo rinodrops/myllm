@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command};
+use std::time::SystemTime;
 
 pub fn find_settings_binary() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
@@ -14,15 +15,19 @@ pub fn find_settings_binary() -> Option<PathBuf> {
     search_path("settings").or_else(|| search_path("Settings"))
 }
 
-pub fn spawn_settings(config: &Path) -> Result<(), String> {
-    let bin = find_settings_binary().ok_or_else(|| {
-        "Settings binary not found next to myllm or on PATH".to_string()
-    })?;
+pub fn spawn_settings(config: &Path) -> Result<Child, String> {
+    let bin = find_settings_binary()
+        .ok_or_else(|| "Settings binary not found next to myllm or on PATH".to_string())?;
     Command::new(bin)
         .arg(config)
         .spawn()
-        .map_err(|err| format!("failed to spawn Settings: {err}"))?;
-    Ok(())
+        .map_err(|err| format!("failed to spawn Settings: {err}"))
+}
+
+pub fn config_mtime(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
 }
 
 fn is_executable(path: &Path) -> bool {
