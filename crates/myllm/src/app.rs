@@ -4,7 +4,9 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use eframe::egui::{self, Align, Color32, Layout, RichText, ScrollArea, TextEdit, ViewportCommand};
+use eframe::egui::{
+    self, Align, Align2, Color32, Layout, RichText, ScrollArea, TextEdit, ViewportCommand,
+};
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use myllm_core::{stream_run, Appearance, Config, EmptyWindowTask, ResolvedRun};
@@ -41,7 +43,7 @@ enum PendingShow {
 
 struct Notice {
     text: String,
-    shown_at: Instant,
+    seen_at: Option<Instant>,
 }
 
 struct TrayBits {
@@ -219,20 +221,51 @@ impl MyApp {
         };
         self.notice = Some(Notice {
             text,
-            shown_at: Instant::now(),
+            seen_at: self.visible.then(Instant::now),
         });
     }
 
     fn expire_notice(&mut self, ctx: &egui::Context) {
+        if self.visible {
+            if let Some(notice) = &mut self.notice {
+                if notice.seen_at.is_none() {
+                    notice.seen_at = Some(Instant::now());
+                }
+            }
+        }
         let Some(notice) = &self.notice else {
             return;
         };
-        let elapsed = notice.shown_at.elapsed();
+        let Some(seen_at) = notice.seen_at else {
+            return;
+        };
+        let elapsed = seen_at.elapsed();
         if elapsed >= NOTICE_TTL {
             self.notice = None;
         } else {
             ctx.request_repaint_after(NOTICE_TTL.saturating_sub(elapsed));
         }
+    }
+
+    fn paint_notice(&self, ctx: &egui::Context) {
+        if !self.visible {
+            return;
+        }
+        let Some(notice) = &self.notice else {
+            return;
+        };
+        let color = if ctx.style().visuals.dark_mode {
+            Color32::from_rgb(0x8F, 0xCB, 0xB3)
+        } else {
+            Color32::from_rgb(0x3D, 0x8F, 0x78)
+        };
+        egui::Area::new(egui::Id::new("notice"))
+            .anchor(Align2::RIGHT_TOP, egui::vec2(-12.0, 8.0))
+            .interactable(false)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.label(RichText::new(&notice.text).small().color(color));
+            });
     }
 
     fn take_pending_show(&mut self, ctx: &egui::Context) {
@@ -358,7 +391,6 @@ impl MyApp {
                 self.install_hotkeys();
                 self.install_tray();
                 self.install_app_menu();
-                self.push_notice(self.strings().config_reloaded);
             }
             Err(err) => self.error = Some(err.to_string()),
         }
@@ -544,9 +576,8 @@ impl MyApp {
                 continue;
             }
             if settings {
-                match settings::spawn_settings(&self.config_path) {
-                    Ok(()) => self.push_notice(self.strings().opened_settings),
-                    Err(err) => self.push_notice(err),
+                if let Err(err) = settings::spawn_settings(&self.config_path) {
+                    self.push_notice(err);
                 }
                 continue;
             }
@@ -620,9 +651,22 @@ impl MyApp {
     fn show_window(&mut self) {
         os::set_accessory(false);
         self.visible = true;
+        if let Some(notice) = &mut self.notice {
+            if notice.seen_at.is_none() {
+                notice.seen_at = Some(Instant::now());
+            }
+        }
     }
 
     fn hide_window(&mut self, ctx: &egui::Context) {
+        if self
+            .notice
+            .as_ref()
+            .and_then(|notice| notice.seen_at)
+            .is_some()
+        {
+            self.notice = None;
+        }
         self.save_position(ctx);
         self.visible = false;
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
@@ -844,9 +888,7 @@ impl eframe::App for MyApp {
                         });
                     });
                 });
-                if let Some(notice) = &self.notice {
-                    ui.weak(&notice.text);
-                } else if !os::supports_in_process_hotkeys() && !self.single_shot {
+                if !os::supports_in_process_hotkeys() && !self.single_shot {
                     ui.weak(t.wayland_hint);
                 }
             });
@@ -910,6 +952,7 @@ impl eframe::App for MyApp {
             });
         self.handle_window_keys(ctx);
         self.track_position(ctx);
+        self.paint_notice(ctx);
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
