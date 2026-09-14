@@ -41,6 +41,40 @@ pub fn set_app_icon() {
     macos::set_app_icon();
 }
 
+pub fn install_quit_watch() {
+    #[cfg(target_os = "macos")]
+    macos::install_quit_watch();
+}
+
+pub fn take_app_menu_quit() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        macos::take_app_menu_quit()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
+pub fn preferred_ui_langs() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        macos::preferred_ui_langs()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+            if let Ok(val) = std::env::var(key) {
+                if !val.trim().is_empty() {
+                    return vec![val];
+                }
+            }
+        }
+        Vec::new()
+    }
+}
+
 pub fn frontmost_pid() -> Option<u32> {
     #[cfg(target_os = "macos")]
     {

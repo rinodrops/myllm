@@ -83,6 +83,7 @@ pub struct General {
     pub open_hotkey: Option<String>,
     #[serde(default)]
     pub capture_selection: bool,
+    pub ui_lang: Option<String>,
 }
 
 impl Default for General {
@@ -97,6 +98,7 @@ impl Default for General {
             empty_window_task: None,
             open_hotkey: None,
             capture_selection: false,
+            ui_lang: None,
         }
     }
 }
@@ -241,6 +243,30 @@ impl Config {
 
     pub fn capture_selection(&self) -> bool {
         self.general.capture_selection
+    }
+
+    pub fn ui_lang(&self) -> Option<&str> {
+        self.general
+            .ui_lang
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    }
+
+    pub fn backend_label(&self, task_id: &str) -> Option<(String, String)> {
+        if task_id == TRANSLATE_TASK {
+            let tr = self.translation();
+            if !tr.enabled {
+                return None;
+            }
+            let provider = self.resolve_provider_name(tr.provider.as_deref()).ok()?;
+            let model = self.resolve_model(tr.model.as_deref(), &provider).ok()?;
+            return Some((provider, model));
+        }
+        let task = self.tasks.get(task_id)?;
+        let provider = self.resolve_provider_name(task.provider.as_deref()).ok()?;
+        let model = self.resolve_model(task.model.as_deref(), &provider).ok()?;
+        Some((provider, model))
     }
 
     pub fn empty_window_task(&self) -> EmptyWindowTask {
@@ -818,5 +844,41 @@ instruction = "Sum"
         );
         assert_eq!(EmptyWindowTask::parse(Some("last")), EmptyWindowTask::Last);
         assert_eq!(EmptyWindowTask::parse(None), EmptyWindowTask::Last);
+    }
+
+    #[test]
+    fn backend_label_does_not_need_an_api_key() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "openai"
+[providers.openai]
+default_model = "gpt-4o"
+api_key_env = "MYLLM_OPENAI_API_KEY"
+[tasks.polish]
+instruction = "Fix"
+"#,
+        );
+        assert_eq!(
+            cfg.backend_label("polish"),
+            Some(("openai".into(), "gpt-4o".into()))
+        );
+        assert!(cfg.ui_lang().is_none());
+    }
+
+    #[test]
+    fn ui_lang_os_is_kept() {
+        let cfg = parse(
+            r#"
+[general]
+default_provider = "ollama"
+ui_lang = "os"
+[providers.ollama]
+default_model = "llama3.2"
+[tasks.polish]
+instruction = "Fix"
+"#,
+        );
+        assert_eq!(cfg.ui_lang(), Some("os"));
     }
 }

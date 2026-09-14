@@ -2,6 +2,7 @@ mod app;
 mod args;
 mod assets;
 mod fonts;
+mod i18n;
 mod os;
 mod settings;
 

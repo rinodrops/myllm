@@ -8,11 +8,12 @@ use eframe::egui::{self, Align, Color32, Layout, RichText, ScrollArea, TextEdit,
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use myllm_core::{stream_run, Appearance, Config, EmptyWindowTask, ResolvedRun};
-use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::args::Args;
 use crate::fonts;
+use crate::i18n;
 use crate::os;
 use crate::settings;
 
@@ -40,6 +41,12 @@ struct TrayBits {
     tasks: Vec<(MenuItem, String)>,
 }
 
+struct AppMenuBits {
+    _menu: Menu,
+    _app: Submenu,
+    _quit: PredefinedMenuItem,
+}
+
 pub struct MyApp {
     args: Args,
     config: Config,
@@ -61,9 +68,12 @@ pub struct MyApp {
     source_pid: Option<u32>,
     visible: bool,
     single_shot: bool,
+    quitting: bool,
+    os_langs: Vec<String>,
     hotkeys: Option<GlobalHotKeyManager>,
     hotkey_map: HashMap<u32, String>,
     tray: Option<TrayBits>,
+    app_menu: Option<AppMenuBits>,
     status: Option<String>,
 }
 
@@ -103,15 +113,20 @@ impl MyApp {
             source_pid: None,
             visible: single_shot,
             single_shot,
+            quitting: false,
+            os_langs: os::preferred_ui_langs(),
             hotkeys: None,
             hotkey_map: HashMap::new(),
             tray: None,
+            app_menu: None,
             status: None,
         };
         os::set_accessory(!single_shot);
         os::set_app_icon();
+        os::install_quit_watch();
         app.install_hotkeys();
         app.install_tray();
+        app.install_app_menu();
         if single_shot {
             let task = app
                 .args
@@ -171,33 +186,44 @@ impl MyApp {
         self.hotkeys = Some(manager);
     }
 
+    fn strings(&self) -> &'static i18n::Strings {
+        i18n::t(self.config.ui_lang(), &self.os_langs)
+    }
+
     fn install_tray(&mut self) {
         self.tray = None;
+        let t = self.strings();
         let menu = Menu::new();
-        let open_window = MenuItem::new("Open Window", true, None);
+        let open_window = MenuItem::new(
+            i18n::menu_label(t.open_window, self.config.open_hotkey()),
+            true,
+            None,
+        );
         let _ = menu.append(&open_window);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let mut tasks = Vec::new();
         for (id, task) in &self.config.tasks {
-            let label = task.name.clone().unwrap_or_else(|| id.clone());
+            let name = task.name.clone().unwrap_or_else(|| id.clone());
+            let label = i18n::menu_label(&name, task.hotkey.as_deref());
             let item = MenuItem::new(&label, true, None);
             let _ = menu.append(&item);
             tasks.push((item, id.clone()));
         }
         if self.config.translation().enabled {
-            let item = MenuItem::new("Translate", true, None);
+            let item = MenuItem::new(
+                i18n::menu_label("Translate", self.config.translation().hotkey.as_deref()),
+                true,
+                None,
+            );
             let _ = menu.append(&item);
             tasks.push((item, "translate".into()));
         }
         let _ = menu.append(&PredefinedMenuItem::separator());
-        let reload = MenuItem::new("Reload Config", true, None);
-        let open_config = MenuItem::new("Open Config Folder", true, None);
-        let settings_item = MenuItem::new(
-            "Settings…",
-            settings::find_settings_binary().is_some(),
-            None,
-        );
-        let quit = MenuItem::new("Quit My LLM", true, None);
+        let reload = MenuItem::new(t.reload_config, true, None);
+        let open_config = MenuItem::new(t.open_config, true, None);
+        let settings_item =
+            MenuItem::new(t.settings, settings::find_settings_binary().is_some(), None);
+        let quit = MenuItem::new(t.quit, true, None);
         let _ = menu.append(&reload);
         let _ = menu.append(&open_config);
         let _ = menu.append(&settings_item);
@@ -229,6 +255,25 @@ impl MyApp {
         }
     }
 
+    fn install_app_menu(&mut self) {
+        self.app_menu = None;
+        #[cfg(target_os = "macos")]
+        {
+            let t = self.strings();
+            let app = Submenu::new("My LLM", true);
+            let quit = PredefinedMenuItem::quit(Some(t.quit));
+            let _ = app.append(&quit);
+            let menu = Menu::new();
+            let _ = menu.append(&app);
+            menu.init_for_nsapp();
+            self.app_menu = Some(AppMenuBits {
+                _menu: menu,
+                _app: app,
+                _quit: quit,
+            });
+        }
+    }
+
     fn reload_config(&mut self, ctx: &egui::Context) {
         match Config::load_path(&self.config_path) {
             Ok(config) => {
@@ -242,7 +287,8 @@ impl MyApp {
                 apply_opacity(ctx, self.appearance, self.opacity);
                 self.install_hotkeys();
                 self.install_tray();
-                self.status = Some("Config reloaded".into());
+                self.install_app_menu();
+                self.status = Some(self.strings().config_reloaded.into());
             }
             Err(err) => self.error = Some(err.to_string()),
         }
@@ -258,8 +304,7 @@ impl MyApp {
         self.error = None;
         self.awaiting_first_token = true;
         self.follow_output = true;
-        self.visible = true;
-        os::set_accessory(false);
+        self.show_window();
         self.job = Job::PrepareInput {
             task_id: task_id.to_string(),
         };
@@ -276,8 +321,7 @@ impl MyApp {
         self.error = None;
         self.awaiting_first_token = false;
         self.last_submitted = Some((self.input.clone(), task));
-        self.visible = true;
-        os::set_accessory(false);
+        self.show_window();
     }
 
     fn initial_empty_task(&self) -> String {
@@ -302,7 +346,7 @@ impl MyApp {
             os::read_clipboard()
         };
         if text.trim().is_empty() {
-            "No text selected and clipboard is empty.".to_string()
+            self.strings().clipboard_empty.to_string()
         } else {
             text
         }
@@ -354,8 +398,7 @@ impl MyApp {
                 } else {
                     run.auto_copy
                 };
-                self.visible = true;
-                os::set_accessory(false);
+                self.show_window();
                 self.job = Job::Running {
                     rx: spawn_stream(run),
                 };
@@ -363,8 +406,7 @@ impl MyApp {
             Err(err) => {
                 self.error = Some(err.to_string());
                 self.awaiting_first_token = false;
-                self.visible = true;
-                os::set_accessory(false);
+                self.show_window();
                 self.job = Job::Idle;
             }
         }
@@ -395,54 +437,55 @@ impl MyApp {
     }
 
     fn poll_tray(&mut self, ctx: &egui::Context) {
-        let Some(tray) = &self.tray else {
-            return;
-        };
-        let Ok(event) = MenuEvent::receiver().try_recv() else {
-            return;
-        };
-        let quit = event.id == tray._quit.id();
-        let open_window = event.id == tray._open_window.id();
-        let reload = event.id == tray._reload.id();
-        let open_config = event.id == tray._open_config.id();
-        let settings = event.id == tray._settings.id();
-        let task_id = tray
-            .tasks
-            .iter()
-            .find(|(item, _)| event.id == item.id())
-            .map(|(_, id)| id.clone());
-        if quit {
-            ctx.send_viewport_cmd(ViewportCommand::Close);
-            return;
-        }
-        if open_window {
-            self.open_empty_window();
-            return;
-        }
-        if reload {
-            self.reload_config(ctx);
-            return;
-        }
-        if open_config {
-            if let Err(err) = os::open_path(&self.config_path) {
-                self.status = Some(err);
+        loop {
+            let Ok(event) = MenuEvent::receiver().try_recv() else {
+                return;
+            };
+            if self.is_quit_menu(&event) {
+                self.request_quit(ctx);
+                return;
             }
-            return;
-        }
-        if settings {
-            match settings::spawn_settings(&self.config_path) {
-                Ok(()) => self.status = Some("Opened Settings".into()),
-                Err(err) => self.status = Some(err),
+            let Some(tray) = &self.tray else {
+                continue;
+            };
+            let open_window = event.id == tray._open_window.id();
+            let reload = event.id == tray._reload.id();
+            let open_config = event.id == tray._open_config.id();
+            let settings = event.id == tray._settings.id();
+            let task_id = tray
+                .tasks
+                .iter()
+                .find(|(item, _)| event.id == item.id())
+                .map(|(_, id)| id.clone());
+            if open_window {
+                self.open_empty_window();
+                continue;
             }
-            return;
-        }
-        if let Some(id) = task_id {
-            if let Some(pid) = os::frontmost_pid() {
-                if pid != os::current_pid() {
-                    self.source_pid = Some(pid);
+            if reload {
+                self.reload_config(ctx);
+                continue;
+            }
+            if open_config {
+                if let Err(err) = os::open_path(&self.config_path) {
+                    self.status = Some(err);
                 }
+                continue;
             }
-            self.launch_task(&id);
+            if settings {
+                match settings::spawn_settings(&self.config_path) {
+                    Ok(()) => self.status = Some("Opened Settings".into()),
+                    Err(err) => self.status = Some(err),
+                }
+                continue;
+            }
+            if let Some(id) = task_id {
+                if let Some(pid) = os::frontmost_pid() {
+                    if pid != os::current_pid() {
+                        self.source_pid = Some(pid);
+                    }
+                }
+                self.launch_task(&id);
+            }
         }
     }
 
@@ -485,14 +528,45 @@ impl MyApp {
         }
     }
 
+    fn is_quit_menu(&self, event: &MenuEvent) -> bool {
+        if let Some(tray) = &self.tray {
+            if event.id == tray._quit.id() {
+                return true;
+            }
+        }
+        if let Some(menu) = &self.app_menu {
+            if event.id == menu._quit.id() {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn show_window(&mut self) {
+        os::set_accessory(false);
+        self.visible = true;
+    }
+
+    fn hide_window(&mut self, ctx: &egui::Context) {
+        self.visible = false;
+        ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+        os::set_accessory(true);
+    }
+
+    fn request_quit(&mut self, ctx: &egui::Context) {
+        self.quitting = true;
+        ctx.send_viewport_cmd(ViewportCommand::Close);
+    }
+
     fn hide_or_quit(&mut self, ctx: &egui::Context) {
-        if self.single_shot {
-            ctx.send_viewport_cmd(ViewportCommand::Close);
+        if self.quitting {
             return;
         }
-        self.visible = false;
-        os::set_accessory(true);
-        ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+        if self.single_shot {
+            self.request_quit(ctx);
+            return;
+        }
+        self.hide_window(ctx);
         ctx.send_viewport_cmd(ViewportCommand::CancelClose);
     }
 
@@ -533,6 +607,15 @@ impl eframe::App for MyApp {
         self.poll_tray(ctx);
         self.poll_stream(ctx);
 
+        if os::take_app_menu_quit() {
+            self.request_quit(ctx);
+        }
+        if ctx
+            .input(|i| i.key_pressed(egui::Key::Q) && (i.modifiers.mac_cmd || i.modifiers.command))
+        {
+            self.request_quit(ctx);
+        }
+
         if matches!(self.job, Job::PrepareInput { .. }) {
             self.prepare_after_paint = true;
             ctx.request_repaint();
@@ -540,24 +623,29 @@ impl eframe::App for MyApp {
 
         if self.visible {
             ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+        } else {
+            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
 
         if ctx.input(|i| i.viewport().close_requested()) {
             self.hide_or_quit(ctx);
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !self.quitting {
             self.hide_or_quit(ctx);
         }
 
-        if self.config_created {
+        let t = self.strings();
+
+        if self.config_created && self.visible {
             egui::Window::new("Configuration created")
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.label(format!(
-                        "A starter config was created at:\n{}",
+                        "{}\n{}",
+                        t.config_created,
                         self.config_path.display()
                     ));
-                    if ui.button("OK").clicked() {
+                    if ui.button(t.ok).clicked() {
                         self.config_created = false;
                     }
                 });
@@ -567,6 +655,7 @@ impl eframe::App for MyApp {
         let can_run = self.can_run();
         let choices = self.task_choices();
         let selected_label = self.config.task_label(&self.selected_task);
+        let backend = self.config.backend_label(&self.selected_task);
 
         egui::TopBottomPanel::bottom("actions")
             .show_separator_line(false)
@@ -575,11 +664,11 @@ impl eframe::App for MyApp {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 8.0;
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if pill_button(ui, "Copy").clicked() {
+                        if pill_button(ui, t.copy).clicked() {
                             self.copy_output();
                         }
                         ui.add_enabled_ui(can_run, |ui| {
-                            if pill_button(ui, "Run").clicked() {
+                            if pill_button(ui, t.run).clicked() {
                                 self.run_selected();
                             }
                         });
@@ -597,13 +686,16 @@ impl eframe::App for MyApp {
                                         }
                                     });
                             });
+                            if let Some((provider, model)) = &backend {
+                                ui.weak(format!("{provider} ({model})"));
+                            }
                         });
                     });
                 });
                 if let Some(status) = &self.status {
                     ui.weak(status);
                 } else if !os::supports_in_process_hotkeys() && !self.single_shot {
-                    ui.weak("On Wayland, assign a compositor shortcut to `myllm --task <id>`.");
+                    ui.weak(t.wayland_hint);
                 }
             });
 
@@ -617,7 +709,7 @@ impl eframe::App for MyApp {
                     egui::vec2(width, half),
                     Layout::top_down(Align::Min),
                     |ui| {
-                        ui.label(RichText::new("Input").small().color(Color32::GRAY));
+                        ui.label(RichText::new(t.input).small().color(Color32::GRAY));
                         ui.add_enabled_ui(!busy, |ui| {
                             ScrollArea::vertical()
                                 .id_salt("input")
@@ -637,7 +729,7 @@ impl eframe::App for MyApp {
                     egui::vec2(width, half),
                     Layout::top_down(Align::Min),
                     |ui| {
-                        ui.label(RichText::new("Output").small().color(Color32::GRAY));
+                        ui.label(RichText::new(t.output).small().color(Color32::GRAY));
                         if let Some(err) = &self.error {
                             ui.colored_label(Color32::from_rgb(220, 80, 80), err);
                         }
