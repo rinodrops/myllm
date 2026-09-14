@@ -17,7 +17,7 @@ cd myllm
 just dev
 ```
 
-The GUI binary is `target/debug/myllm`.
+The debug GUI binary is `target/debug/myllm`.
 
 ```bash
 # Persistent tray / menu (macOS and Windows)
@@ -29,6 +29,14 @@ target/debug/myllm --task translate --to ja
 ```
 
 On Wayland, assign those argv invocations in the compositor. In-process global hotkeys are not the primary entry point there.
+
+On macOS, daily use is an unsigned `.app`:
+
+```bash
+just install   # dist/darwin-arm64/My LLM.app → /Applications
+```
+
+`just darwin-build-arm64` only writes the bundle under `dist/`. Signing and notarization are not included yet.
 
 ## Configuration
 
