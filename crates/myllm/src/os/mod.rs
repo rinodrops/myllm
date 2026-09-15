@@ -22,18 +22,43 @@ pub fn supports_in_process_hotkeys() -> bool {
     }
 }
 
-pub fn apply_float_chrome(ctx: &egui::Context) {
+pub fn apply_float_chrome(ctx: &egui::Context, frame: &eframe::Frame, visible: bool) {
     #[cfg(target_os = "macos")]
-    macos::apply_float_chrome();
+    if visible {
+        macos::apply_float_chrome();
+    }
     #[cfg(target_os = "windows")]
-    windows::apply_tool_window(ctx);
-    let _ = ctx;
+    {
+        use raw_window_handle::HasWindowHandle;
+        if let Ok(handle) = frame.window_handle() {
+            windows::apply_tool_window_handle(handle, visible);
+        }
+    }
+    let _ = (ctx, frame, visible);
+}
+
+pub fn acquire_instance() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        windows::acquire_instance()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        true
+    }
 }
 
 pub fn set_accessory(hidden: bool) {
     #[cfg(target_os = "macos")]
     macos::set_accessory(hidden);
     let _ = hidden;
+}
+
+pub fn show_startup_error(message: &str) {
+    #[cfg(target_os = "windows")]
+    windows::show_startup_error(message);
+    #[cfg(not(target_os = "windows"))]
+    let _ = message;
 }
 
 pub fn set_app_icon() {
@@ -101,7 +126,11 @@ pub fn preferred_ui_langs() -> Vec<String> {
     {
         macos::preferred_ui_langs()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        windows::preferred_ui_langs()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
             if let Ok(val) = std::env::var(key) {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -23,6 +24,9 @@ use crate::window_state;
 
 const OPEN_WINDOW: &str = "open_window";
 const NOTICE_TTL: Duration = Duration::from_millis(2500);
+
+static MENU_EVENTS: Mutex<Vec<MenuEvent>> = Mutex::new(Vec::new());
+static HOTKEY_EVENTS: Mutex<Vec<GlobalHotKeyEvent>> = Mutex::new(Vec::new());
 
 enum StreamMsg {
     Token(String),
@@ -82,6 +86,8 @@ pub struct MyApp {
     follow_output: bool,
     source_pid: Option<u32>,
     visible: bool,
+    applied_visible: Option<bool>,
+    hide_passes: u8,
     single_shot: bool,
     quitting: bool,
     os_langs: Vec<String>,
@@ -132,6 +138,8 @@ impl MyApp {
             follow_output: true,
             source_pid: None,
             visible: single_shot,
+            applied_visible: None,
+            hide_passes: 0,
             single_shot,
             quitting: false,
             os_langs: os::preferred_ui_langs(),
@@ -149,6 +157,7 @@ impl MyApp {
         os::set_accessory(!single_shot);
         os::set_app_icon();
         os::install_quit_watch();
+        install_wake_handlers(&cc.egui_ctx);
         app.install_hotkeys();
         app.install_tray();
         app.install_app_menu();
@@ -336,14 +345,12 @@ impl MyApp {
         let _ = menu.append(&settings_item);
         let _ = menu.append(&PredefinedMenuItem::separator());
         let _ = menu.append(&quit);
-        let mut tray = TrayIconBuilder::new()
+        let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_tooltip("My LLM")
             .with_icon(tray_icon_image());
         #[cfg(target_os = "macos")]
-        {
-            tray = tray.with_icon_as_template(true);
-        }
+        let tray = tray.with_icon_as_template(true);
         match tray.build() {
             Ok(tray) => {
                 self.tray = Some(TrayBits {
@@ -569,19 +576,24 @@ impl MyApp {
         }
     }
 
+    fn remember_source_pid(&mut self) {
+        if let Some(pid) = os::frontmost_pid() {
+            if pid != os::current_pid() {
+                self.source_pid = Some(pid);
+            }
+        }
+    }
+
     fn poll_hotkeys(&mut self) {
-        loop {
-            let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() else {
-                return;
-            };
+        let events = HOTKEY_EVENTS
+            .lock()
+            .map(|mut q| std::mem::take(&mut *q))
+            .unwrap_or_default();
+        for event in events {
             if event.state != HotKeyState::Pressed {
                 continue;
             }
-            if let Some(pid) = os::frontmost_pid() {
-                if pid != os::current_pid() {
-                    self.source_pid = Some(pid);
-                }
-            }
+            self.remember_source_pid();
             let Some(task) = self.hotkey_map.get(&event.id).cloned() else {
                 continue;
             };
@@ -594,10 +606,11 @@ impl MyApp {
     }
 
     fn poll_tray(&mut self, ctx: &egui::Context) {
-        loop {
-            let Ok(event) = MenuEvent::receiver().try_recv() else {
-                return;
-            };
+        let events = MENU_EVENTS
+            .lock()
+            .map(|mut q| std::mem::take(&mut *q))
+            .unwrap_or_default();
+        for event in events {
             if self.is_quit_menu(&event) {
                 self.request_quit(ctx);
                 return;
@@ -615,6 +628,7 @@ impl MyApp {
                 .find(|(item, _)| event.id == item.id())
                 .map(|(_, id)| id.clone());
             if open_window {
+                self.remember_source_pid();
                 self.pending_show = Some((PendingShow::Empty, Instant::now()));
                 ctx.request_repaint_after(Duration::from_millis(50));
                 continue;
@@ -634,11 +648,7 @@ impl MyApp {
                 continue;
             }
             if let Some(id) = task_id {
-                if let Some(pid) = os::frontmost_pid() {
-                    if pid != os::current_pid() {
-                        self.source_pid = Some(pid);
-                    }
-                }
+                self.remember_source_pid();
                 self.pending_show = Some((PendingShow::Task(id), Instant::now()));
                 ctx.request_repaint_after(Duration::from_millis(50));
             }
@@ -703,6 +713,7 @@ impl MyApp {
     fn show_window(&mut self) {
         os::set_accessory(false);
         self.visible = true;
+        self.hide_passes = 0;
         if let Some(notice) = &mut self.notice {
             if notice.seen_at.is_none() {
                 notice.seen_at = Some(Instant::now());
@@ -721,8 +732,15 @@ impl MyApp {
         }
         self.save_position(ctx);
         self.visible = false;
-        ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         os::set_accessory(true);
+    }
+
+    fn sync_visibility(&mut self, ctx: &egui::Context) {
+        if self.applied_visible == Some(self.visible) {
+            return;
+        }
+        ctx.send_viewport_cmd(ViewportCommand::Visible(self.visible));
+        self.applied_visible = Some(self.visible);
     }
 
     fn request_quit(&mut self, ctx: &egui::Context) {
@@ -824,21 +842,9 @@ impl MyApp {
 }
 
 impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        os::apply_float_chrome(ctx);
-        apply_appearance(ctx, self.appearance);
-        apply_opacity(ctx, self.appearance, self.opacity);
-
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.take_pending_show(ctx);
         self.expire_notice(ctx);
-
-        if !self.visible {
-            if let Some(pid) = os::frontmost_pid() {
-                if pid != os::current_pid() {
-                    self.source_pid = Some(pid);
-                }
-            }
-        }
 
         if self.prepare_after_paint {
             self.prepare_after_paint = false;
@@ -864,18 +870,30 @@ impl eframe::App for MyApp {
             ctx.request_repaint();
         }
 
-        if self.visible {
-            ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-        } else {
-            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-        }
-
         if ctx.input(|i| i.viewport().close_requested()) {
             self.hide_or_quit(ctx);
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !self.quitting {
+        if self.visible && ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !self.quitting {
             self.hide_or_quit(ctx);
         }
+
+        self.sync_visibility(ctx);
+        if self.visible {
+            os::apply_float_chrome(ctx, frame, true);
+        } else {
+            if self.hide_passes < 2 {
+                os::apply_float_chrome(ctx, frame, false);
+                self.hide_passes += 1;
+                if self.hide_passes < 2 {
+                    self.applied_visible = None;
+                    ctx.request_repaint();
+                }
+            }
+            return;
+        }
+
+        apply_appearance(ctx, self.appearance);
+        apply_opacity(ctx, self.appearance, self.opacity);
 
         let t = self.strings();
 
@@ -1008,9 +1026,30 @@ impl eframe::App for MyApp {
         self.paint_notice(ctx);
     }
 
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        if cfg!(target_os = "windows") {
+            opaque_panel_fill(self.appearance, visuals.dark_mode).to_normalized_gamma_f32()
+        } else {
+            [0.0, 0.0, 0.0, 0.0]
+        }
     }
+}
+
+fn install_wake_handlers(ctx: &egui::Context) {
+    let ctx_menu = ctx.clone();
+    MenuEvent::set_event_handler(Some(move |event| {
+        if let Ok(mut q) = MENU_EVENTS.lock() {
+            q.push(event);
+        }
+        ctx_menu.request_repaint();
+    }));
+    let ctx_hotkey = ctx.clone();
+    GlobalHotKeyEvent::set_event_handler(Some(move |event| {
+        if let Ok(mut q) = HOTKEY_EVENTS.lock() {
+            q.push(event);
+        }
+        ctx_hotkey.request_repaint();
+    }));
 }
 
 fn spawn_stream(run: ResolvedRun) -> Receiver<StreamMsg> {
@@ -1050,7 +1089,11 @@ fn apply_opacity(ctx: &egui::Context, appearance: Appearance, opacity: f32) {
     } else {
         egui::Visuals::light()
     };
-    let alpha = (opacity.clamp(0.5, 1.0) * 255.0).round() as u8;
+    let alpha = if cfg!(target_os = "windows") {
+        255
+    } else {
+        (opacity.clamp(0.5, 1.0) * 255.0).round() as u8
+    };
     visuals.panel_fill = with_alpha(visuals.panel_fill, alpha);
     visuals.window_fill = with_alpha(visuals.window_fill, alpha);
     visuals.extreme_bg_color = with_alpha(visuals.extreme_bg_color, alpha);
@@ -1060,6 +1103,19 @@ fn apply_opacity(ctx: &egui::Context, appearance: Appearance, opacity: f32) {
 
 fn with_alpha(color: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
+}
+
+fn opaque_panel_fill(appearance: Appearance, system_dark: bool) -> Color32 {
+    let dark = match appearance {
+        Appearance::Dark => true,
+        Appearance::Light => false,
+        Appearance::System => system_dark,
+    };
+    if dark {
+        egui::Visuals::dark().panel_fill
+    } else {
+        egui::Visuals::light().panel_fill
+    }
 }
 
 fn content_frame(ctx: &egui::Context) -> egui::Frame {

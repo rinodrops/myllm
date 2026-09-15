@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod app;
 mod args;
 mod assets;
@@ -13,6 +15,17 @@ use app::MyApp;
 use args::Args;
 
 fn main() -> eframe::Result {
+    if !os::acquire_instance() {
+        return Ok(());
+    }
+    let result = run();
+    if let Err(err) = &result {
+        os::show_startup_error(&err.to_string());
+    }
+    result
+}
+
+fn run() -> eframe::Result {
     let args = Args::from_env();
     let visible = args.is_single_shot();
     let icon = eframe::icon_data::from_png_bytes(assets::APP_ICON_PNG).expect("app icon");
@@ -24,7 +37,7 @@ fn main() -> eframe::Result {
         .with_title("")
         .with_app_id("jp.emotiongraphics.myllm")
         .with_icon(icon)
-        .with_transparent(true)
+        .with_transparent(cfg!(not(target_os = "windows")))
         .with_fullsize_content_view(true)
         .with_title_shown(false)
         .with_titlebar_shown(false);
