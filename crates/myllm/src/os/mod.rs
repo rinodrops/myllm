@@ -22,17 +22,30 @@ pub fn supports_in_process_hotkeys() -> bool {
     }
 }
 
-pub fn apply_float_chrome(ctx: &egui::Context, frame: &eframe::Frame) {
+pub fn apply_float_chrome(ctx: &egui::Context, frame: &eframe::Frame, visible: bool) {
     #[cfg(target_os = "macos")]
-    macos::apply_float_chrome();
+    if visible {
+        macos::apply_float_chrome();
+    }
     #[cfg(target_os = "windows")]
     {
         use raw_window_handle::HasWindowHandle;
         if let Ok(handle) = frame.window_handle() {
-            windows::apply_tool_window_handle(handle);
+            windows::apply_tool_window_handle(handle, visible);
         }
     }
-    let _ = (ctx, frame);
+    let _ = (ctx, frame, visible);
+}
+
+pub fn acquire_instance() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        windows::acquire_instance()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        true
+    }
 }
 
 pub fn set_accessory(hidden: bool) {

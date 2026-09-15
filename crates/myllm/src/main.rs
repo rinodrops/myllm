@@ -15,6 +15,9 @@ use app::MyApp;
 use args::Args;
 
 fn main() -> eframe::Result {
+    if !os::acquire_instance() {
+        return Ok(());
+    }
     let result = run();
     if let Err(err) = &result {
         os::show_startup_error(&err.to_string());

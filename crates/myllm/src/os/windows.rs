@@ -3,17 +3,41 @@ use std::time::Duration;
 
 use raw_window_handle::{RawWindowHandle, WindowHandle};
 use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+use windows_sys::Win32::System::Threading::CreateMutexW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, MessageBoxW,
-    SetWindowLongPtrW, GWL_EXSTYLE, MB_ICONERROR, MB_OK, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, MessageBoxW,
+    SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE, LWA_ALPHA,
+    MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOWNA, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
 };
 
 use super::read_clipboard;
 
 const VK_C: VIRTUAL_KEY = 0x43;
+const INSTANCE_MUTEX: &str = "Local\\jp.emotiongraphics.myllm";
+
+pub fn acquire_instance() -> bool {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    let wide: Vec<u16> = OsStr::new(INSTANCE_MUTEX)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 1, wide.as_ptr());
+        if handle.is_null() {
+            return true;
+        }
+        if GetLastError() == ERROR_ALREADY_EXISTS {
+            return false;
+        }
+        let _ = handle;
+        true
+    }
+}
 
 pub fn show_startup_error(message: &str) {
     fn wide(s: &str) -> Vec<u16> {
@@ -74,18 +98,27 @@ pub fn preferred_ui_langs() -> Vec<String> {
     }
 }
 
-pub fn apply_tool_window_handle(handle: WindowHandle<'_>) {
+pub fn apply_tool_window_handle(handle: WindowHandle<'_>, visible: bool) {
     if let RawWindowHandle::Win32(win) = handle.as_raw() {
-        set_tool_style(win.hwnd.get() as HWND);
+        set_tool_style(win.hwnd.get() as HWND, visible);
     }
 }
 
-fn set_tool_style(hwnd: HWND) {
+fn set_tool_style(hwnd: HWND, visible: bool) {
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let next = (style | WS_EX_TOOLWINDOW as isize) & !(WS_EX_APPWINDOW as isize);
+        let next = (style | WS_EX_TOOLWINDOW as isize | WS_EX_LAYERED as isize)
+            & !(WS_EX_APPWINDOW as isize);
         if next != style {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+        }
+        let alpha = if visible { 255u8 } else { 0 };
+        SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+        let shown = IsWindowVisible(hwnd) != 0;
+        if visible && !shown {
+            ShowWindow(hwnd, SW_SHOWNA);
+        } else if !visible && shown {
+            ShowWindow(hwnd, SW_HIDE);
         }
     }
 }
@@ -107,7 +140,10 @@ pub fn foreground_pid() -> Option<u32> {
 }
 
 pub fn capture_selection(source_pid: Option<u32>) -> String {
-    if source_pid.filter(|pid| *pid != std::process::id()).is_some() {
+    if source_pid
+        .filter(|pid| *pid != std::process::id())
+        .is_some()
+    {
         send_ctrl_c();
         std::thread::sleep(Duration::from_millis(250));
     }
