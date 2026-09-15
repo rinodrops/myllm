@@ -41,6 +41,13 @@ pub fn set_accessory(hidden: bool) {
     let _ = hidden;
 }
 
+pub fn show_startup_error(message: &str) {
+    #[cfg(target_os = "windows")]
+    windows::show_startup_error(message);
+    #[cfg(not(target_os = "windows"))]
+    let _ = message;
+}
+
 pub fn set_app_icon() {
     #[cfg(target_os = "macos")]
     macos::set_app_icon();

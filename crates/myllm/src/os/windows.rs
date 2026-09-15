@@ -7,13 +7,29 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW,
-    GWL_EXSTYLE, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, MessageBoxW,
+    SetWindowLongPtrW, GWL_EXSTYLE, MB_ICONERROR, MB_OK, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 use super::read_clipboard;
 
 const VK_C: VIRTUAL_KEY = 0x43;
+
+pub fn show_startup_error(message: &str) {
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+    let text = wide(message);
+    let caption = wide("My LLM");
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text.as_ptr(),
+            caption.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
 
 pub fn local_hm() -> String {
     use windows_sys::Win32::Foundation::SYSTEMTIME;

@@ -1008,8 +1008,12 @@ impl eframe::App for MyApp {
         self.paint_notice(ctx);
     }
 
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0]
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        if cfg!(target_os = "windows") {
+            opaque_panel_fill(self.appearance, visuals.dark_mode).to_normalized_gamma_f32()
+        } else {
+            [0.0, 0.0, 0.0, 0.0]
+        }
     }
 }
 
@@ -1050,7 +1054,11 @@ fn apply_opacity(ctx: &egui::Context, appearance: Appearance, opacity: f32) {
     } else {
         egui::Visuals::light()
     };
-    let alpha = (opacity.clamp(0.5, 1.0) * 255.0).round() as u8;
+    let alpha = if cfg!(target_os = "windows") {
+        255
+    } else {
+        (opacity.clamp(0.5, 1.0) * 255.0).round() as u8
+    };
     visuals.panel_fill = with_alpha(visuals.panel_fill, alpha);
     visuals.window_fill = with_alpha(visuals.window_fill, alpha);
     visuals.extreme_bg_color = with_alpha(visuals.extreme_bg_color, alpha);
@@ -1060,6 +1068,19 @@ fn apply_opacity(ctx: &egui::Context, appearance: Appearance, opacity: f32) {
 
 fn with_alpha(color: Color32, alpha: u8) -> Color32 {
     Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha)
+}
+
+fn opaque_panel_fill(appearance: Appearance, system_dark: bool) -> Color32 {
+    let dark = match appearance {
+        Appearance::Dark => true,
+        Appearance::Light => false,
+        Appearance::System => system_dark,
+    };
+    if dark {
+        egui::Visuals::dark().panel_fill
+    } else {
+        egui::Visuals::light().panel_fill
+    }
 }
 
 fn content_frame(ctx: &egui::Context) -> egui::Frame {
