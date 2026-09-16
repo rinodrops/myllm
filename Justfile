@@ -15,6 +15,7 @@ win_icon_src := "crates/myllm/assets/appicon-windows.png"
 settings_repo := env_var_or_default("SETTINGS_REPO", "../settings")
 entitlements := "assets/darwin/entitlements.plist"
 dmg_settings := "assets/darwin/dmg_settings.py"
+dmg_background := justfile_directory() + "/assets/darwin/dmg-background.png"
 
 default: help
 
@@ -235,6 +236,7 @@ _darwin-create-dmg arch:
     dmgbuild \
         -s "{{dmg_settings}}" \
         -D app="dist/{{arch}}/{{app_name}}.app" \
+        -D background="{{dmg_background}}" \
         "{{app_name}}" \
         "dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg"
 
