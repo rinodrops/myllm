@@ -40,7 +40,9 @@ fn run() -> eframe::Result {
         .with_transparent(cfg!(not(target_os = "windows")))
         .with_fullsize_content_view(true)
         .with_title_shown(false)
-        .with_titlebar_shown(false);
+        .with_titlebar_shown(false)
+        .with_decorations(cfg!(not(target_os = "windows")))
+        .with_taskbar(false);
     if let Some(pos) = window_state::load() {
         viewport = viewport.with_position(pos);
     }

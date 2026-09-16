@@ -260,6 +260,55 @@ impl MyApp {
         }
     }
 
+    fn paint_windows_caption(&mut self, ctx: &egui::Context) {
+        if !cfg!(target_os = "windows") || !self.visible {
+            return;
+        }
+        let height = 32.0;
+        let close_w = 46.0;
+        let mut close_clicked = false;
+        let mut drag_started = false;
+        egui::TopBottomPanel::top("win_caption")
+            .exact_height(height)
+            .show_separator_line(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.panel_fill)
+                    .inner_margin(egui::Margin::ZERO)
+                    .outer_margin(egui::Margin::ZERO),
+            )
+            .show(ctx, |ui| {
+                ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let close = ui.add_sized(
+                        [close_w, height],
+                        egui::Button::new(
+                            RichText::new("\u{00D7}").size(18.0).color(Color32::WHITE),
+                        )
+                        .fill(Color32::from_rgb(0xE8, 0x11, 0x23))
+                        .stroke(egui::Stroke::NONE)
+                        .corner_radius(0),
+                    );
+                    if close.clicked() {
+                        close_clicked = true;
+                    }
+                    let (_, drag) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), height),
+                        egui::Sense::drag(),
+                    );
+                    if drag.drag_started() {
+                        drag_started = true;
+                    }
+                });
+            });
+        if drag_started {
+            ctx.send_viewport_cmd(ViewportCommand::StartDrag);
+        }
+        if close_clicked {
+            self.hide_or_quit(ctx);
+        }
+    }
+
     fn paint_notice(&self, ctx: &egui::Context) {
         if !self.visible {
             return;
@@ -272,8 +321,13 @@ impl MyApp {
         } else {
             Color32::from_rgb(0x3D, 0x8F, 0x78)
         };
+        let notice_y = if cfg!(target_os = "windows") {
+            36.0
+        } else {
+            8.0
+        };
         egui::Area::new(egui::Id::new("notice"))
-            .anchor(Align2::RIGHT_TOP, egui::vec2(-12.0, 8.0))
+            .anchor(Align2::RIGHT_TOP, egui::vec2(-12.0, notice_y))
             .interactable(false)
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
@@ -928,6 +982,8 @@ impl eframe::App for MyApp {
         let backend = self.config.backend_label(&self.selected_task);
         let run_tip = shortcut_tip(t.run, "cmd+r");
         let copy_tip = shortcut_tip(t.copy, "cmd+c");
+
+        self.paint_windows_caption(ctx);
 
         egui::TopBottomPanel::bottom("actions")
             .show_separator_line(false)

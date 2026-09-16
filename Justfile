@@ -11,6 +11,7 @@ version := `awk -F'"' '/^version *=/{print $2; exit}' Cargo.toml`
 rust_target_arm64 := "aarch64-apple-darwin"
 rust_target_x86 := "x86_64-apple-darwin"
 icon_src := "crates/myllm/assets/appicon.png"
+win_icon_src := "crates/myllm/assets/appicon-windows.png"
 settings_repo := env_var_or_default("SETTINGS_REPO", "../settings")
 entitlements := "assets/darwin/entitlements.plist"
 dmg_settings := "assets/darwin/dmg_settings.py"
@@ -262,7 +263,7 @@ _appicon-ico:
     set -euo pipefail
     command -v magick >/dev/null 2>&1 || \
         { echo "Error: ImageMagick magick not found" >&2; exit 1; }
-    magick "{{icon_src}}" -define icon:auto-resize=256,48,32,16 "{{ico_out}}"
+    magick "{{win_icon_src}}" -define icon:auto-resize=256,48,32,16 "{{ico_out}}"
     echo "Generated: {{ico_out}}"
 
 _bundle-settings-win dest_dir:
