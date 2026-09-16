@@ -1,4 +1,5 @@
 use std::mem::{size_of, zeroed};
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Duration;
 
 use raw_window_handle::{RawWindowHandle, WindowHandle};
@@ -10,14 +11,17 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindowVisible, MessageBoxW,
-    SetLayeredWindowAttributes, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE, LWA_ALPHA,
-    MB_ICONERROR, MB_OK, SW_HIDE, SW_SHOWNA, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    PostMessageW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    GWL_EXSTYLE, HWND_NOTOPMOST, HWND_TOPMOST, LWA_ALPHA, MB_ICONERROR, MB_OK, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, SW_SHOWNA, WM_NULL, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    WS_EX_TRANSPARENT,
 };
 
 use super::read_clipboard;
 
 const VK_C: VIRTUAL_KEY = 0x43;
 const INSTANCE_MUTEX: &str = "Local\\jp.emotiongraphics.myllm";
+static RESULT_HWND: AtomicIsize = AtomicIsize::new(0);
 
 pub fn acquire_instance() -> bool {
     use std::ffi::OsStr;
@@ -100,25 +104,56 @@ pub fn preferred_ui_langs() -> Vec<String> {
 
 pub fn apply_tool_window_handle(handle: WindowHandle<'_>, visible: bool) {
     if let RawWindowHandle::Win32(win) = handle.as_raw() {
-        set_tool_style(win.hwnd.get() as HWND, visible);
+        let hwnd = win.hwnd.get() as HWND;
+        RESULT_HWND.store(win.hwnd.get() as isize, Ordering::Relaxed);
+        set_tool_style(hwnd, visible);
+    }
+}
+
+pub fn wake_hidden_window() {
+    let hwnd = RESULT_HWND.load(Ordering::Relaxed) as HWND;
+    if hwnd.is_null() {
+        return;
+    }
+    unsafe {
+        if IsWindowVisible(hwnd) == 0 {
+            ShowWindow(hwnd, SW_SHOWNA);
+        }
+        PostMessageW(hwnd, WM_NULL, 0, 0);
     }
 }
 
 fn set_tool_style(hwnd: HWND, visible: bool) {
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let next = (style | WS_EX_TOOLWINDOW as isize | WS_EX_LAYERED as isize)
+        let mut next = (style | WS_EX_TOOLWINDOW as isize | WS_EX_LAYERED as isize)
             & !(WS_EX_APPWINDOW as isize);
+        if visible {
+            next &= !(WS_EX_TRANSPARENT as isize);
+        } else {
+            next |= WS_EX_TRANSPARENT as isize;
+        }
         if next != style {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
         }
         let alpha = if visible { 255u8 } else { 0 };
         SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
-        let shown = IsWindowVisible(hwnd) != 0;
-        if visible && !shown {
+        let z = if visible {
+            HWND_TOPMOST
+        } else {
+            HWND_NOTOPMOST
+        };
+        SetWindowPos(
+            hwnd,
+            z,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+        if visible || IsWindowVisible(hwnd) == 0 {
             ShowWindow(hwnd, SW_SHOWNA);
-        } else if !visible && shown {
-            ShowWindow(hwnd, SW_HIDE);
         }
     }
 }

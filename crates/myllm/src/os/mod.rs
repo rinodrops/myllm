@@ -37,6 +37,11 @@ pub fn apply_float_chrome(ctx: &egui::Context, frame: &eframe::Frame, visible: b
     let _ = (ctx, frame, visible);
 }
 
+pub fn wake_hidden_window() {
+    #[cfg(target_os = "windows")]
+    windows::wake_hidden_window();
+}
+
 pub fn acquire_instance() -> bool {
     #[cfg(target_os = "windows")]
     {

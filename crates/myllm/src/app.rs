@@ -736,6 +736,13 @@ impl MyApp {
     }
 
     fn sync_visibility(&mut self, ctx: &egui::Context) {
+        if cfg!(target_os = "windows") {
+            if self.visible && self.applied_visible != Some(true) {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+                self.applied_visible = Some(true);
+            }
+            return;
+        }
         if self.applied_visible == Some(self.visible) {
             return;
         }
@@ -878,11 +885,9 @@ impl eframe::App for MyApp {
         }
 
         self.sync_visibility(ctx);
-        if self.visible {
-            os::apply_float_chrome(ctx, frame, true);
-        } else {
-            if self.hide_passes < 2 {
-                os::apply_float_chrome(ctx, frame, false);
+        os::apply_float_chrome(ctx, frame, self.visible);
+        if !self.visible {
+            if !cfg!(target_os = "windows") && self.hide_passes < 2 {
                 self.hide_passes += 1;
                 if self.hide_passes < 2 {
                     self.applied_visible = None;
@@ -1041,6 +1046,7 @@ fn install_wake_handlers(ctx: &egui::Context) {
         if let Ok(mut q) = MENU_EVENTS.lock() {
             q.push(event);
         }
+        os::wake_hidden_window();
         ctx_menu.request_repaint();
     }));
     let ctx_hotkey = ctx.clone();
@@ -1048,6 +1054,7 @@ fn install_wake_handlers(ctx: &egui::Context) {
         if let Ok(mut q) = HOTKEY_EVENTS.lock() {
             q.push(event);
         }
+        os::wake_hidden_window();
         ctx_hotkey.request_repaint();
     }));
 }
