@@ -183,7 +183,8 @@ impl MyApp {
         let manager = match GlobalHotKeyManager::new() {
             Ok(m) => m,
             Err(err) => {
-                self.push_notice(format!("hotkeys unavailable: {err}"));
+                let msg = self.strings().hotkeys_unavailable(&err);
+                self.push_notice(msg);
                 return;
             }
         };
@@ -357,7 +358,8 @@ impl MyApp {
                 });
             }
             Err(err) => {
-                self.push_notice(format!("tray unavailable: {err}"));
+                let msg = self.strings().tray_unavailable(&err);
+                self.push_notice(msg);
             }
         }
     }
@@ -421,7 +423,14 @@ impl MyApp {
                 self.settings_child = Some(child);
                 ctx.request_repaint_after(Duration::from_millis(400));
             }
-            Err(err) => self.push_notice(err),
+            Err(err) => {
+                let t = self.strings();
+                let msg = match err {
+                    settings::SpawnError::NotFound => t.settings_not_found.to_string(),
+                    settings::SpawnError::Spawn(err) => t.settings_spawn(err),
+                };
+                self.push_notice(msg);
+            }
         }
     }
 
