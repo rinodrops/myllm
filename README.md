@@ -50,7 +50,7 @@ Version tags (`v*`) run `just darwin-zip-*` for both architectures on GitHub Act
 
 ## Configuration
 
-The config file is `${XDG_CONFIG_HOME:-$HOME/.config}/myllm/config.toml`. A starter file is copied on first launch from [`config/config.toml`](config/config.toml).
+The config file is `${XDG_CONFIG_HOME:-$HOME/.config}/myllm/config.toml`. A starter file is copied on first launch from [`config/config.toml`](config/config.toml). Window, tray, and Settings labels follow `[general] ui_lang` (`os` or a whichlang language code).
 
 This repository owns `schema.toml`; it does not vendor Settings source.
 

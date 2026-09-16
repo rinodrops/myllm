@@ -10,13 +10,13 @@ content_height = 480
 
 [[tabs]]
 id = "general"
-label = { en = "General", ja = "一般" }
+label = { en = "General", ja = "一般", ar = "عام", nl = "Algemeen", fr = "Général", de = "Allgemein", hi = "सामान्य", it = "Generale", ko = "일반", zh = "常规", pt = "Geral", ru = "Основные", es = "General", sv = "Allmänt", tr = "Genel", vi = "Chung" }
 icon = "settings"
 content_height = 450
 
 [[tabs.fields]]
 key = "general.appearance"
-label = { en = "Appearance", ja = "外観" }
+label = { en = "Appearance", ja = "外観", ar = "المظهر", nl = "Weergave", fr = "Apparence", de = "Erscheinungsbild", hi = "दिखावट", it = "Aspetto", ko = "모양", zh = "外观", pt = "Aparência", ru = "Оформление", es = "Apariencia", sv = "Utseende", tr = "Görünüm", vi = "Giao diện" }
 type = "string"
 widget = "segmented_control"
 options = ["system", "light", "dark"]
@@ -24,16 +24,16 @@ max_width = 300
 
 [[tabs.fields]]
 key = "general.ui_lang"
-label = { en = "Language", ja = "表示言語" }
+label = { en = "Language", ja = "表示言語", ar = "اللغة", nl = "Taal", fr = "Langue", de = "Sprache", hi = "भाषा", it = "Lingua", ko = "언어", zh = "语言", pt = "Idioma", ru = "Язык", es = "Idioma", sv = "Språk", tr = "Dil", vi = "Ngôn ngữ" }
 type = "string"
 widget = "select"
 options = ["os", "ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
 max_width = 300
-hint = { en = "Window and menu language. Independent of translation target. os follows the OS.", ja = "ウィンドウとメニューの言語。翻訳のターゲットとは別。os は OS に従う。" }
+hint = { en = "Window and menu language. Independent of translation target. os follows the OS.", ja = "ウィンドウとメニューの言語。翻訳のターゲットとは別。os は OS に従う。", ar = "لغة النافذة والقوائم. مستقلة عن لغة الترجمة المستهدفة. os يتبع نظام التشغيل.", nl = "Taal van venster en menu. Los van het vertaaldoel. os volgt het besturingssysteem.", fr = "Langue de la fenêtre et des menus. Indépendante de la langue cible de traduction. os suit le système.", de = "Sprache von Fenster und Menüs. Unabhängig vom Übersetzungsziel. os folgt dem Betriebssystem.", hi = "विंडो और मेन्यू की भाषा। अनुवाद लक्ष्य से अलग। os ऑपरेटिंग सिस्टम का अनुसरण करता है।", it = "Lingua di finestra e menu. Indipendente dalla lingua di traduzione. os segue il sistema.", ko = "창과 메뉴 언어입니다. 번역 대상 언어와는 별개입니다. os는 OS를 따릅니다.", zh = "窗口和菜单语言。与翻译目标无关。os 跟随操作系统。", pt = "Idioma da janela e dos menus. Independente do destino da tradução. os segue o sistema.", ru = "Язык окна и меню. Не зависит от языка перевода. os следует системе.", es = "Idioma de la ventana y los menús. Independiente del destino de traducción. os sigue el sistema.", sv = "Språk för fönster och menyer. Oberoende av översättningsmål. os följer operativsystemet.", tr = "Pencere ve menü dili. Çeviri hedefinden bağımsızdır. os işletim sistemini izler.", vi = "Ngôn ngữ cửa sổ và menu. Không liên quan đến ngôn ngữ đích dịch. os theo hệ điều hành." }
 
 [[tabs.fields]]
 key = "general.default_provider"
-label = { en = "Default provider", ja = "デフォルトプロバイダ" }
+label = { en = "Default provider", ja = "デフォルトプロバイダ", ar = "المزود الافتراضي", nl = "Standaardprovider", fr = "Fournisseur par défaut", de = "Standardanbieter", hi = "डिफ़ॉल्ट प्रदाता", it = "Provider predefinito", ko = "기본 프로바이더", zh = "默认提供方", pt = "Provedor padrão", ru = "Провайдер по умолчанию", es = "Proveedor predeterminado", sv = "Standardleverantör", tr = "Varsayılan sağlayıcı", vi = "Nhà cung cấp mặc định" }
 type = "string"
 widget = "segmented_control"
 options_from = "providers"
@@ -44,19 +44,19 @@ key = "general.auto_copy"
 label = ""
 type = "bool"
 widget = "checkbox"
-sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする" }
+sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする", ar = "نسخ رد النموذج إلى الحافظة تلقائيًا", nl = "Het LLM-antwoord automatisch naar het klembord kopiëren", fr = "Copier automatiquement la réponse du LLM dans le presse-papiers", de = "LLM-Antwort automatisch in die Zwischenablage kopieren", hi = "LLM उत्तर को स्वचालित रूप से क्लिपबोर्ड पर कॉपी करें", it = "Copia automaticamente la risposta dell'LLM negli appunti", ko = "LLM 응답을 클립보드에 자동으로 복사", zh = "自动将 LLM 回复复制到剪贴板", pt = "Copiar automaticamente a resposta do LLM para a área de transferência", ru = "Автоматически копировать ответ модели в буфер обмена", es = "Copiar automáticamente la respuesta del LLM al portapapeles", sv = "Kopiera LLM-svaret till urklipp automatiskt", tr = "LLM yanıtını panoya otomatik kopyala", vi = "Tự động sao chép phản hồi LLM vào clipboard" }
 
 [[tabs.fields]]
 key = "general.keep_alive"
-label = { en = "Keep-alive", ja = "keep-alive" }
+label = { en = "Keep-alive", ja = "keep-alive", ar = "Keep-alive", nl = "Keep-alive", fr = "Keep-alive", de = "Keep-alive", hi = "Keep-alive", it = "Keep-alive", ko = "keep-alive", zh = "Keep-alive", pt = "Keep-alive", ru = "Keep-alive", es = "Keep-alive", sv = "Keep-alive", tr = "Keep-alive", vi = "Keep-alive" }
 type = "string"
 widget = "text_input"
 max_width = 100
-hint = { en = "How long to keep the Ollama model loaded (e.g. 5m, 30s, 1h)", ja = "モデルをメモリ上に維持する時間（例: 5m, 30s, 1h）" }
+hint = { en = "How long to keep the Ollama model loaded (e.g. 5m, 30s, 1h)", ja = "モデルをメモリ上に維持する時間（例: 5m, 30s, 1h）", ar = "مدة الإبقاء على نموذج Ollama محمّلًا (مثل 5m أو 30s أو 1h)", nl = "Hoe lang het Ollama-model geladen blijft (bijv. 5m, 30s, 1h)", fr = "Durée de conservation du modèle Ollama en mémoire (ex. 5m, 30s, 1h)", de = "Wie lange das Ollama-Modell geladen bleibt (z. B. 5m, 30s, 1h)", hi = "Ollama मॉडल को कितनी देर लोड रखना है (जैसे 5m, 30s, 1h)", it = "Quanto a lungo mantenere caricato il modello Ollama (es. 5m, 30s, 1h)", ko = "Ollama 모델을 메모리에 유지할 시간 (예: 5m, 30s, 1h)", zh = "Ollama 模型在内存中保持加载的时长（例如 5m、30s、1h）", pt = "Por quanto tempo manter o modelo Ollama carregado (ex.: 5m, 30s, 1h)", ru = "Как долго держать модель Ollama загруженной (напр. 5m, 30s, 1h)", es = "Cuánto tiempo mantener el modelo Ollama cargado (p. ej. 5m, 30s, 1h)", sv = "Hur länge Ollama-modellen ska hållas laddad (t.ex. 5m, 30s, 1h)", tr = "Ollama modelinin ne kadar yüklü kalacağı (örn. 5m, 30s, 1h)", vi = "Thời gian giữ mô hình Ollama trong bộ nhớ (ví dụ 5m, 30s, 1h)" }
 
 [[tabs.fields]]
 key = "general.opacity"
-label = { en = "Opacity", ja = "不透明度" }
+label = { en = "Opacity", ja = "不透明度", ar = "العتامة", nl = "Dekking", fr = "Opacité", de = "Deckkraft", hi = "अपारदर्शिता", it = "Opacità", ko = "불투명도", zh = "不透明度", pt = "Opacidade", ru = "Непрозрачность", es = "Opacidad", sv = "Opacitet", tr = "Opaklık", vi = "Độ mờ" }
 type = "number"
 widget = "drag_value"
 min = 0.5
@@ -66,15 +66,15 @@ max_width = 100
 
 [[tabs.fields]]
 key = "general.default_task"
-label = { en = "Default task", ja = "デフォルトタスク" }
+label = { en = "Default task", ja = "デフォルトタスク", ar = "المهمة الافتراضية", nl = "Standaardtaak", fr = "Tâche par défaut", de = "Standardaufgabe", hi = "डिफ़ॉल्ट कार्य", it = "Attività predefinita", ko = "기본 작업", zh = "默认任务", pt = "Tarefa padrão", ru = "Задача по умолчанию", es = "Tarea predeterminada", sv = "Standarduppgift", tr = "Varsayılan görev", vi = "Tác vụ mặc định" }
 type = "string"
 widget = "text_input"
 max_width = 200
-hint = { en = "Task id used when Open Window has no last-run task", ja = "空ウィンドウで前回タスクがないときに使うタスク id" }
+hint = { en = "Task id used when Open Window has no last-run task", ja = "空ウィンドウで前回タスクがないときに使うタスク id", ar = "معرّف المهمة المستخدم عندما لا توجد مهمة سابقة لفتح النافذة", nl = "Taak-id wanneer Open venster geen vorige taak heeft", fr = "Id de tâche utilisé si Ouvrir la fenêtre n'a pas de dernière tâche", de = "Aufgaben-ID, wenn Fenster öffnen keine letzte Aufgabe hat", hi = "ओपन विंडो में पिछला कार्य न होने पर प्रयुक्त कार्य id", it = "Id attività usato quando Apri finestra non ha un'ultima attività", ko = "창 열기에 이전 작업이 없을 때 쓰는 작업 id", zh = "打开窗口没有上次任务时使用的任务 id", pt = "Id da tarefa usado quando Abrir janela não tem uma última tarefa", ru = "Идентификатор задачи, если у Открыть окно нет предыдущей задачи", es = "Id de tarea si Abrir ventana no tiene una última tarea", sv = "Uppgifts-id när Öppna fönster saknar senaste uppgift", tr = "Pencereyi aç son görevi yoksa kullanılan görev id'si", vi = "Id tác vụ khi Mở cửa sổ không có tác vụ gần nhất" }
 
 [[tabs.fields]]
 key = "general.empty_window_task"
-label = { en = "Open Window task", ja = "空ウィンドウのタスク" }
+label = { en = "Open Window task", ja = "空ウィンドウのタスク", ar = "مهمة فتح النافذة", nl = "Taak bij venster openen", fr = "Tâche d'ouverture de fenêtre", de = "Aufgabe für Fenster öffnen", hi = "ओपन विंडो कार्य", it = "Attività Apri finestra", ko = "창 열기 작업", zh = "打开窗口的任务", pt = "Tarefa Abrir janela", ru = "Задача для Открыть окно", es = "Tarea de Abrir ventana", sv = "Uppgift för Öppna fönster", tr = "Pencereyi aç görevi", vi = "Tác vụ Mở cửa sổ" }
 type = "string"
 widget = "segmented_control"
 options = ["last", "default"]
@@ -82,7 +82,7 @@ max_width = 240
 
 [[tabs.fields]]
 key = "general.open_hotkey"
-label = { en = "Open Window hotkey", ja = "空ウィンドウのホットキー" }
+label = { en = "Open Window hotkey", ja = "空ウィンドウのホットキー", ar = "اختصار فتح النافذة", nl = "Sneltoets venster openen", fr = "Raccourci Ouvrir la fenêtre", de = "Tastenkürzel Fenster öffnen", hi = "ओपन विंडो हॉटकी", it = "Scorciatoia Apri finestra", ko = "창 열기 단축키", zh = "打开窗口快捷键", pt = "Atalho Abrir janela", ru = "Сочетание для Открыть окно", es = "Atajo de Abrir ventana", sv = "Genväg för Öppna fönster", tr = "Pencereyi aç kısayolu", vi = "Phím tắt Mở cửa sổ" }
 type = "string"
 widget = "hotkey"
 
@@ -91,11 +91,11 @@ key = "general.capture_selection"
 label = ""
 type = "bool"
 widget = "checkbox"
-sublabel = { en = "Send ⌘/Control+C to copy the selection.", ja = "選択テキストを取るため前面アプリへ ⌘/Control+C を送る。" }
+sublabel = { en = "Send ⌘/Control+C to copy the selection.", ja = "選択テキストを取るため前面アプリへ ⌘/Control+C を送る。", ar = "أرسل ⌘/Control+C لنسخ التحديد.", nl = "Stuur ⌘/Control+C om de selectie te kopiëren.", fr = "Envoyer ⌘/Control+C pour copier la sélection.", de = "⌘/Control+C senden, um die Auswahl zu kopieren.", hi = "चयन कॉपी करने के लिए ⌘/Control+C भेजें।", it = "Invia ⌘/Control+C per copiare la selezione.", ko = "선택 항목을 복사하려면 ⌘/Control+C를 보냅니다.", zh = "发送 ⌘/Control+C 以复制所选内容。", pt = "Enviar ⌘/Control+C para copiar a seleção.", ru = "Отправить ⌘/Control+C, чтобы скопировать выделение.", es = "Enviar ⌘/Control+C para copiar la selección.", sv = "Skicka ⌘/Control+C för att kopiera markeringen.", tr = "Seçimi kopyalamak için ⌘/Control+C gönder.", vi = "Gửi ⌘/Control+C để sao chép phần chọn." }
 
 [[tabs]]
 id = "providers"
-label = { en = "Providers", ja = "プロバイダ" }
+label = { en = "Providers", ja = "プロバイダ", ar = "المزودون", nl = "Providers", fr = "Fournisseurs", de = "Anbieter", hi = "प्रदाता", it = "Provider", ko = "프로바이더", zh = "提供方", pt = "Provedores", ru = "Провайдеры", es = "Proveedores", sv = "Leverantörer", tr = "Sağlayıcılar", vi = "Nhà cung cấp" }
 icon = "cloud"
 content_height = 250
 
@@ -107,35 +107,35 @@ max_width = 360
 
 [[tabs.section_map.fields]]
 key = "base_url"
-label = { en = "Base URL", ja = "ベース URL" }
+label = { en = "Base URL", ja = "ベース URL", ar = "عنوان URL الأساسي", nl = "Basis-URL", fr = "URL de base", de = "Basis-URL", hi = "बेस URL", it = "URL di base", ko = "베이스 URL", zh = "基础 URL", pt = "URL base", ru = "Базовый URL", es = "URL base", sv = "Bas-URL", tr = "Temel URL", vi = "URL gốc" }
 type = "string"
 widget = "text_input"
 
 [[tabs.section_map.fields]]
 key = "default_model"
-label = { en = "Default model", ja = "デフォルトモデル" }
+label = { en = "Default model", ja = "デフォルトモデル", ar = "النموذج الافتراضي", nl = "Standaardmodel", fr = "Modèle par défaut", de = "Standardmodell", hi = "डिफ़ॉल्ट मॉडल", it = "Modello predefinito", ko = "기본 모델", zh = "默认模型", pt = "Modelo padrão", ru = "Модель по умолчанию", es = "Modelo predeterminado", sv = "Standardmodell", tr = "Varsayılan model", vi = "Mô hình mặc định" }
 type = "string"
 widget = "text_input"
 
 [[tabs.section_map.fields]]
 key = "api_key"
-label = { en = "API key", ja = "API キー" }
+label = { en = "API key", ja = "API キー", ar = "مفتاح API", nl = "API-sleutel", fr = "Clé API", de = "API-Schlüssel", hi = "API कुंजी", it = "Chiave API", ko = "API 키", zh = "API 密钥", pt = "Chave de API", ru = "Ключ API", es = "Clave API", sv = "API-nyckel", tr = "API anahtarı", vi = "Khóa API" }
 type = "string"
 widget = "exclusive_radio"
-hint_direct = { en = "Stored in the config file in plain text.", ja = "設定ファイルに平文で保存されます。" }
-hint_env = { en = "Read from this environment variable at launch. Must start with MYLLM_.", ja = "起動時にこの環境変数から読み込みます。MYLLM_ で始めてください。" }
+hint_direct = { en = "Stored in the config file in plain text.", ja = "設定ファイルに平文で保存されます。", ar = "يُحفظ في ملف الإعدادات كنص واضح.", nl = "Opgeslagen als platte tekst in het configbestand.", fr = "Enregistré en clair dans le fichier de configuration.", de = "Wird unverschlüsselt in der Konfigurationsdatei gespeichert.", hi = "कॉन्फ़िग फ़ाइल में सादे पाठ के रूप में सहेजा जाता है।", it = "Salvato in chiaro nel file di configurazione.", ko = "설정 파일에 평문으로 저장됩니다.", zh = "以明文保存在配置文件中。", pt = "Armazenado em texto simples no arquivo de configuração.", ru = "Хранится в файле конфигурации открытым текстом.", es = "Se guarda en texto plano en el archivo de configuración.", sv = "Lagras i klartext i konfigurationsfilen.", tr = "Yapılandırma dosyasında düz metin olarak saklanır.", vi = "Lưu dạng văn bản thuần trong tệp cấu hình." }
+hint_env = { en = "Read from this environment variable at launch. Must start with MYLLM_.", ja = "起動時にこの環境変数から読み込みます。MYLLM_ で始めてください。", ar = "يُقرأ من متغير البيئة هذا عند التشغيل. يجب أن يبدأ بـ MYLLM_.", nl = "Wordt bij het starten uit deze omgevingsvariabele gelezen. Moet beginnen met MYLLM_.", fr = "Lu depuis cette variable d'environnement au lancement. Doit commencer par MYLLM_.", de = "Wird beim Start aus dieser Umgebungsvariable gelesen. Muss mit MYLLM_ beginnen.", hi = "लॉन्च पर इस एनवायरनमेंट वैरिएबल से पढ़ा जाता है। MYLLM_ से शुरू होना चाहिए।", it = "Letta da questa variabile d'ambiente all'avvio. Deve iniziare con MYLLM_.", ko = "시작 시 이 환경 변수에서 읽습니다. MYLLM_로 시작해야 합니다.", zh = "启动时从此环境变量读取。必须以 MYLLM_ 开头。", pt = "Lida desta variável de ambiente na inicialização. Deve começar com MYLLM_.", ru = "Читается из этой переменной окружения при запуске. Должна начинаться с MYLLM_.", es = "Se lee de esta variable de entorno al iniciar. Debe empezar por MYLLM_.", sv = "Läses från den här miljövariabeln vid start. Måste börja med MYLLM_.", tr = "Başlatırken bu ortam değişkeninden okunur. MYLLM_ ile başlamalıdır.", vi = "Đọc từ biến môi trường này khi khởi chạy. Phải bắt đầu bằng MYLLM_." }
 
 [tabs.section_map.fields.exclusive]
 mode_key = "api_key_mode"
 mode_default = "direct"
 variants = [
-  { value = "direct", label = { en = "Direct", ja = "直接入力" }, field_key = "api_key", widget = "secret_input" },
-  { value = "env", label = { en = "Environment", ja = "環境変数" }, field_key = "api_key_env", widget = "text_input" },
+  { value = "direct", label = { en = "Direct", ja = "直接入力", ar = "مباشر", nl = "Direct", fr = "Direct", de = "Direkt", hi = "सीधा", it = "Diretto", ko = "직접 입력", zh = "直接输入", pt = "Direto", ru = "Напрямую", es = "Directo", sv = "Direkt", tr = "Doğrudan", vi = "Trực tiếp" }, field_key = "api_key", widget = "secret_input" },
+  { value = "env", label = { en = "Environment", ja = "環境変数", ar = "متغير بيئة", nl = "Omgeving", fr = "Environnement", de = "Umgebung", hi = "एनवायरनमेंट", it = "Ambiente", ko = "환경 변수", zh = "环境变量", pt = "Ambiente", ru = "Переменная среды", es = "Entorno", sv = "Miljövariabel", tr = "Ortam değişkeni", vi = "Biến môi trường" }, field_key = "api_key_env", widget = "text_input" },
 ]
 
 [[tabs]]
 id = "tasks"
-label = { en = "Tasks", ja = "タスク" }
+label = { en = "Tasks", ja = "タスク", ar = "المهام", nl = "Taken", fr = "Tâches", de = "Aufgaben", hi = "कार्य", it = "Attività", ko = "작업", zh = "任务", pt = "Tarefas", ru = "Задачи", es = "Tareas", sv = "Uppgifter", tr = "Görevler", vi = "Tác vụ" }
 icon = "checklist"
 content_height = 400
 
@@ -145,19 +145,19 @@ allow_add_remove = true
 
 [[tabs.section_map.fields]]
 key = "name"
-label = { en = "Name", ja = "タスク名" }
+label = { en = "Name", ja = "タスク名", ar = "الاسم", nl = "Naam", fr = "Nom", de = "Name", hi = "नाम", it = "Nome", ko = "이름", zh = "名称", pt = "Nome", ru = "Имя", es = "Nombre", sv = "Namn", tr = "Ad", vi = "Tên" }
 type = "string"
 widget = "text_input"
 
 [[tabs.section_map.fields]]
 key = "hotkey"
-label = { en = "Hotkey", ja = "ホットキー" }
+label = { en = "Hotkey", ja = "ホットキー", ar = "اختصار", nl = "Sneltoets", fr = "Raccourci", de = "Tastenkürzel", hi = "हॉटकी", it = "Scorciatoia", ko = "단축키", zh = "快捷键", pt = "Atalho", ru = "Сочетание клавиш", es = "Atajo", sv = "Genväg", tr = "Kısayol", vi = "Phím tắt" }
 type = "string"
 widget = "hotkey"
 
 [[tabs.section_map.fields]]
 key = "provider"
-label = { en = "Provider", ja = "プロバイダ" }
+label = { en = "Provider", ja = "プロバイダ", ar = "المزود", nl = "Provider", fr = "Fournisseur", de = "Anbieter", hi = "प्रदाता", it = "Provider", ko = "프로바이더", zh = "提供方", pt = "Provedor", ru = "Провайдер", es = "Proveedor", sv = "Leverantör", tr = "Sağlayıcı", vi = "Nhà cung cấp" }
 type = "string"
 widget = "segmented_control"
 options_from = "providers"
@@ -165,39 +165,39 @@ max_width = 300
 
 [[tabs.section_map.fields]]
 key = "model"
-label = { en = "Model", ja = "モデル" }
+label = { en = "Model", ja = "モデル", ar = "النموذج", nl = "Model", fr = "Modèle", de = "Modell", hi = "मॉडल", it = "Modello", ko = "모델", zh = "模型", pt = "Modelo", ru = "Модель", es = "Modelo", sv = "Modell", tr = "Model", vi = "Mô hình" }
 type = "string"
 widget = "text_input"
-hint = { en = "Leave empty to use the provider default_model", ja = "空ならプロバイダの default_model を使う" }
+hint = { en = "Leave empty to use the provider default_model", ja = "空ならプロバイダの default_model を使う", ar = "اتركه فارغًا لاستخدام default_model الخاص بالمزود", nl = "Leeg laten om default_model van de provider te gebruiken", fr = "Laisser vide pour utiliser default_model du fournisseur", de = "Leer lassen, um default_model des Anbieters zu verwenden", hi = "प्रदाता का default_model उपयोग करने के लिए खाली छोड़ें", it = "Lascia vuoto per usare default_model del provider", ko = "비우면 프로바이더의 default_model을 사용합니다", zh = "留空则使用提供方的 default_model", pt = "Deixe vazio para usar o default_model do provedor", ru = "Оставьте пустым, чтобы использовать default_model провайдера", es = "Déjelo vacío para usar default_model del proveedor", sv = "Lämna tomt för att använda leverantörens default_model", tr = "Sağlayıcının default_model değerini kullanmak için boş bırakın", vi = "Để trống để dùng default_model của nhà cung cấp" }
 
 [[tabs.section_map.fields]]
 key = "auto_copy"
 label = ""
 type = "bool"
 widget = "checkbox"
-sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする" }
+sublabel = { en = "Copy the LLM response to the clipboard automatically", ja = "LLM の応答を自動でクリップボードにコピーする", ar = "نسخ رد النموذج إلى الحافظة تلقائيًا", nl = "Het LLM-antwoord automatisch naar het klembord kopiëren", fr = "Copier automatiquement la réponse du LLM dans le presse-papiers", de = "LLM-Antwort automatisch in die Zwischenablage kopieren", hi = "LLM उत्तर को स्वचालित रूप से क्लिपबोर्ड पर कॉपी करें", it = "Copia automaticamente la risposta dell'LLM negli appunti", ko = "LLM 응답을 클립보드에 자동으로 복사", zh = "自动将 LLM 回复复制到剪贴板", pt = "Copiar automaticamente a resposta do LLM para a área de transferência", ru = "Автоматически копировать ответ модели в буфер обмена", es = "Copiar automáticamente la respuesta del LLM al portapapeles", sv = "Kopiera LLM-svaret till urklipp automatiskt", tr = "LLM yanıtını panoya otomatik kopyala", vi = "Tự động sao chép phản hồi LLM vào clipboard" }
 
 [[tabs.section_map.fields]]
 key = "instruction"
-label = { en = "Instruction", ja = "指示文" }
+label = { en = "Instruction", ja = "指示文", ar = "التعليمات", nl = "Instructie", fr = "Instruction", de = "Anweisung", hi = "निर्देश", it = "Istruzione", ko = "지시문", zh = "指令", pt = "Instrução", ru = "Инструкция", es = "Instrucción", sv = "Instruktion", tr = "Yönerge", vi = "Hướng dẫn" }
 type = "string"
 widget = "multiline"
 rows = 6
 
 [[tabs]]
 id = "translation"
-label = { en = "Translation", ja = "翻訳" }
+label = { en = "Translation", ja = "翻訳", ar = "الترجمة", nl = "Vertaling", fr = "Traduction", de = "Übersetzung", hi = "अनुवाद", it = "Traduzione", ko = "번역", zh = "翻译", pt = "Tradução", ru = "Перевод", es = "Traducción", sv = "Översättning", tr = "Çeviri", vi = "Dịch" }
 icon = "translate"
 
 [[tabs.fields]]
 key = "translation.enabled"
-label = { en = "Enable translation", ja = "翻訳機能を有効にする" }
+label = { en = "Enable translation", ja = "翻訳機能を有効にする", ar = "تفعيل الترجمة", nl = "Vertaling inschakelen", fr = "Activer la traduction", de = "Übersetzung aktivieren", hi = "अनुवाद सक्षम करें", it = "Abilita traduzione", ko = "번역 사용", zh = "启用翻译", pt = "Ativar tradução", ru = "Включить перевод", es = "Activar traducción", sv = "Aktivera översättning", tr = "Çeviriyi etkinleştir", vi = "Bật dịch" }
 type = "bool"
 widget = "toggle"
 
 [[tabs.fields]]
 key = "translation.engine"
-label = { en = "Engine", ja = "エンジン" }
+label = { en = "Engine", ja = "エンジン", ar = "المحرك", nl = "Engine", fr = "Moteur", de = "Engine", hi = "इंजन", it = "Motore", ko = "엔진", zh = "引擎", pt = "Mecanismo", ru = "Движок", es = "Motor", sv = "Motor", tr = "Motor", vi = "Công cụ" }
 type = "string"
 widget = "segmented_control"
 options = ["translategemma", "custom"]
@@ -205,48 +205,48 @@ max_width = 360
 
 [[tabs.fields]]
 key = "translation.provider"
-label = { en = "Provider", ja = "プロバイダ" }
+label = { en = "Provider", ja = "プロバイダ", ar = "المزود", nl = "Provider", fr = "Fournisseur", de = "Anbieter", hi = "प्रदाता", it = "Provider", ko = "프로바이더", zh = "提供方", pt = "Provedor", ru = "Провайдер", es = "Proveedor", sv = "Leverantör", tr = "Sağlayıcı", vi = "Nhà cung cấp" }
 type = "string"
 widget = "segmented_control"
 options_from = "providers"
 
 [[tabs.fields]]
 key = "translation.model"
-label = { en = "Model", ja = "モデル" }
+label = { en = "Model", ja = "モデル", ar = "النموذج", nl = "Model", fr = "Modèle", de = "Modell", hi = "मॉडल", it = "Modello", ko = "모델", zh = "模型", pt = "Modelo", ru = "Модель", es = "Modelo", sv = "Modell", tr = "Model", vi = "Mô hình" }
 type = "string"
 widget = "text_input"
 
 [[tabs.fields]]
 key = "translation.hotkey"
-label = { en = "Hotkey", ja = "ホットキー" }
+label = { en = "Hotkey", ja = "ホットキー", ar = "اختصار", nl = "Sneltoets", fr = "Raccourci", de = "Tastenkürzel", hi = "हॉटकी", it = "Scorciatoia", ko = "단축키", zh = "快捷键", pt = "Atalho", ru = "Сочетание клавиш", es = "Atajo", sv = "Genväg", tr = "Kısayol", vi = "Phím tắt" }
 type = "string"
 widget = "hotkey"
 
 [[tabs.fields]]
 key = "translation.default_source"
-label = { en = "Default source", ja = "デフォルトソース言語" }
+label = { en = "Default source", ja = "デフォルトソース言語", ar = "اللغة المصدر الافتراضية", nl = "Standaardbrontaal", fr = "Source par défaut", de = "Standardquellsprache", hi = "डिफ़ॉल्ट स्रोत", it = "Origine predefinita", ko = "기본 소스 언어", zh = "默认源语言", pt = "Origem padrão", ru = "Исходный язык по умолчанию", es = "Origen predeterminado", sv = "Standardkälla", tr = "Varsayılan kaynak", vi = "Nguồn mặc định" }
 type = "string"
 widget = "select"
 options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
 
 [[tabs.fields]]
 key = "translation.default_target"
-label = { en = "Default target", ja = "デフォルトターゲット言語" }
+label = { en = "Default target", ja = "デフォルトターゲット言語", ar = "اللغة الهدف الافتراضية", nl = "Standaarddoeltaal", fr = "Cible par défaut", de = "Standardzielsprache", hi = "डिफ़ॉल्ट लक्ष्य", it = "Destinazione predefinita", ko = "기본 대상 언어", zh = "默认目标语言", pt = "Destino padrão", ru = "Целевой язык по умолчанию", es = "Destino predeterminado", sv = "Standardmål", tr = "Varsayılan hedef", vi = "Đích mặc định" }
 type = "string"
 widget = "select"
 options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
 
 [[tabs.fields]]
 key = "translation.fallback_target"
-label = { en = "Fallback target", ja = "フォールバック言語" }
+label = { en = "Fallback target", ja = "フォールバック言語", ar = "لغة الاحتياط", nl = "Reservedoeltaal", fr = "Cible de secours", de = "Ersatzzielsprache", hi = "फ़ॉलबैक लक्ष्य", it = "Destinazione di riserva", ko = "대체 언어", zh = "回退语言", pt = "Destino reserva", ru = "Запасной язык", es = "Destino alternativo", sv = "Reservmål", tr = "Yedek hedef", vi = "Ngôn ngữ dự phòng" }
 type = "string"
 widget = "select"
 options = ["ar", "nl", "en", "fr", "de", "hi", "it", "ja", "ko", "zh", "pt", "ru", "es", "sv", "tr", "vi"]
 
 [[tabs.fields]]
 key = "translation.instruction"
-label = { en = "Custom instruction", ja = "カスタム指示文" }
+label = { en = "Custom instruction", ja = "カスタム指示文", ar = "تعليمات مخصصة", nl = "Aangepaste instructie", fr = "Instruction personnalisée", de = "Eigene Anweisung", hi = "कस्टम निर्देश", it = "Istruzione personalizzata", ko = "사용자 지정 지시문", zh = "自定义指令", pt = "Instrução personalizada", ru = "Своя инструкция", es = "Instrucción personalizada", sv = "Anpassad instruktion", tr = "Özel yönerge", vi = "Hướng dẫn tùy chỉnh" }
 type = "string"
 widget = "multiline"
 rows = 6
-hint = { en = "Used when engine is custom. Variables: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ja = "engine が custom のとき使う。変数: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}" }
+hint = { en = "Used when engine is custom. Variables: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ja = "engine が custom のとき使う。変数: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ar = "تُستخدم عندما يكون المحرك custom. المتغيرات: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", nl = "Gebruikt wanneer engine custom is. Variabelen: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", fr = "Utilisé lorsque engine est custom. Variables : {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", de = "Wird verwendet, wenn engine custom ist. Variablen: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", hi = "engine के custom होने पर उपयोग। चर: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", it = "Usato quando engine è custom. Variabili: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ko = "engine이 custom일 때 사용합니다. 변수: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", zh = "engine 为 custom 时使用。变量：{SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", pt = "Usado quando engine é custom. Variáveis: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", ru = "Используется, когда engine равен custom. Переменные: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", es = "Se usa cuando engine es custom. Variables: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", sv = "Används när engine är custom. Variabler: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", tr = "engine custom olduğunda kullanılır. Değişkenler: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}", vi = "Dùng khi engine là custom. Biến: {SOURCE_LANG} {SOURCE_CODE} {TARGET_LANG} {TARGET_CODE} {TEXT}" }
