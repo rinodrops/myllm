@@ -101,6 +101,14 @@ pub struct MyApp {
     pos_dirty_at: Option<Instant>,
     settings_child: Option<std::process::Child>,
     settings_mtime: Option<std::time::SystemTime>,
+    #[cfg(target_os = "windows")]
+    last_tick: std::time::SystemTime,
+    #[cfg(target_os = "windows")]
+    last_mono: Instant,
+    #[cfg(target_os = "windows")]
+    restore_inner_size: Option<egui::Vec2>,
+    #[cfg(target_os = "windows")]
+    recover_repaints: u8,
 }
 
 impl MyApp {
@@ -137,7 +145,7 @@ impl MyApp {
             prepare_after_paint: false,
             follow_output: true,
             source_pid: None,
-            visible: single_shot,
+            visible: single_shot || os::show_after_sleep(),
             applied_visible: None,
             hide_passes: 0,
             single_shot,
@@ -153,6 +161,14 @@ impl MyApp {
             pos_dirty_at: None,
             settings_child: None,
             settings_mtime: None,
+            #[cfg(target_os = "windows")]
+            last_tick: std::time::SystemTime::now(),
+            #[cfg(target_os = "windows")]
+            last_mono: Instant::now(),
+            #[cfg(target_os = "windows")]
+            restore_inner_size: None,
+            #[cfg(target_os = "windows")]
+            recover_repaints: 0,
         };
         os::set_accessory(!single_shot);
         os::set_app_icon();
@@ -903,6 +919,52 @@ impl MyApp {
         ctx.send_viewport_cmd(ViewportCommand::CancelClose);
     }
 
+    fn recover_after_stall(&mut self, ctx: &egui::Context) {
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = ctx;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            const STALL: Duration = Duration::from_secs(2);
+            let now = std::time::SystemTime::now();
+            let wall = now.duration_since(self.last_tick).unwrap_or(Duration::ZERO);
+            let mono = self.last_mono.elapsed();
+            self.last_tick = now;
+            self.last_mono = Instant::now();
+            let frozen = wall >= STALL && wall.saturating_sub(mono) >= STALL;
+            if !self.quitting && (os::take_resume_restart() || frozen) {
+                self.save_position(ctx);
+                os::restart_self(self.visible);
+            }
+            let stalled = wall >= STALL;
+            if stalled {
+                os::refresh_display(self.visible);
+                let size = ctx.input(|i| {
+                    i.viewport()
+                        .inner_rect
+                        .map(|rect| rect.size())
+                        .or_else(|| i.viewport().outer_rect.map(|rect| rect.size()))
+                        .or(self.restore_inner_size)
+                        .unwrap_or_else(|| i.screen_rect().size())
+                });
+                if size.x > 1.0 && size.y > 1.0 {
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(size + egui::vec2(1.0, 0.0)));
+                    self.restore_inner_size = Some(size);
+                }
+                self.recover_repaints = 3;
+                ctx.request_repaint();
+            } else if let Some(size) = self.restore_inner_size.take() {
+                ctx.send_viewport_cmd(ViewportCommand::InnerSize(size));
+                ctx.request_repaint();
+            }
+            if self.recover_repaints > 0 {
+                self.recover_repaints -= 1;
+                ctx.request_repaint();
+            }
+        }
+    }
+
     fn task_choices(&self) -> Vec<(String, String)> {
         let t = self.strings();
         let mut choices: Vec<(String, String)> = self
@@ -956,6 +1018,7 @@ impl eframe::App for MyApp {
 
         self.sync_visibility(ctx);
         os::apply_float_chrome(ctx, frame, self.visible);
+        self.recover_after_stall(ctx);
         if !self.visible {
             if !cfg!(target_os = "windows") && self.hide_passes < 2 {
                 self.hide_passes += 1;
@@ -1031,7 +1094,10 @@ impl eframe::App for MyApp {
                                     });
                             });
                             if let Some((provider, model)) = &backend {
-                                ui.weak(format!("{provider} ({model})"));
+                                ui.label(
+                                    RichText::new(format!("{provider} ({model})"))
+                                        .color(chrome_caption_color(ui)),
+                                );
                             }
                         });
                     });
@@ -1051,7 +1117,11 @@ impl eframe::App for MyApp {
                     egui::vec2(width, half),
                     Layout::top_down(Align::Min),
                     |ui| {
-                        ui.label(RichText::new(t.input).small().color(Color32::GRAY));
+                        ui.label(
+                            RichText::new(t.input)
+                                .small()
+                                .color(chrome_caption_color(ui)),
+                        );
                         ui.add_enabled_ui(!busy, |ui| {
                             ScrollArea::vertical()
                                 .id_salt("input")
@@ -1071,7 +1141,11 @@ impl eframe::App for MyApp {
                     egui::vec2(width, half),
                     Layout::top_down(Align::Min),
                     |ui| {
-                        ui.label(RichText::new(t.output).small().color(Color32::GRAY));
+                        ui.label(
+                            RichText::new(t.output)
+                                .small()
+                                .color(chrome_caption_color(ui)),
+                        );
                         if let Some(err) = &self.error {
                             ui.colored_label(Color32::from_rgb(220, 80, 80), err);
                         }
@@ -1147,6 +1221,16 @@ fn spawn_stream(run: ResolvedRun) -> Receiver<StreamMsg> {
         }
     });
     rx
+}
+
+fn chrome_caption_color(ui: &egui::Ui) -> Color32 {
+    let color = ui.visuals().text_color();
+    Color32::from_rgba_unmultiplied(
+        (color.r() as f32 * 0.82 + 0.5) as u8,
+        (color.g() as f32 * 0.82 + 0.5) as u8,
+        (color.b() as f32 * 0.82 + 0.5) as u8,
+        color.a(),
+    )
 }
 
 fn apply_appearance(ctx: &egui::Context, appearance: Appearance) {

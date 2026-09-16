@@ -42,6 +42,31 @@ pub fn wake_hidden_window() {
     windows::wake_hidden_window();
 }
 
+#[cfg(target_os = "windows")]
+pub fn refresh_display(visible: bool) {
+    windows::refresh_display(visible);
+}
+
+#[cfg(target_os = "windows")]
+pub fn show_after_sleep() -> bool {
+    windows::show_after_sleep()
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn show_after_sleep() -> bool {
+    false
+}
+
+#[cfg(target_os = "windows")]
+pub fn take_resume_restart() -> bool {
+    windows::take_resume_restart()
+}
+
+#[cfg(target_os = "windows")]
+pub fn restart_self(show_window: bool) {
+    windows::restart_self(show_window);
+}
+
 pub fn acquire_instance() -> bool {
     #[cfg(target_os = "windows")]
     {
