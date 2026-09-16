@@ -41,7 +41,9 @@ just darwin-zip-arm64        # notarized .app as a zip
 just darwin-zip-x86_64       # Intel Mac
 ```
 
-Version tags (`v*`) run `just darwin-zip-*` for both architectures on GitHub Actions. Unsigned `just install` stays the Apple Silicon daily path.
+Version tags (`v*`) run `just darwin-zip-*` for both architectures on GitHub Actions, and `just win-zip` for Windows. Unsigned `just install` stays the Apple Silicon daily path.
+
+On Windows, `just install` copies `myllm.exe` and `settings.exe` to `%LOCALAPPDATA%\Programs\myllm\`. Tag CI uploads `My-LLM-vVERSION-windows-x86_64.zip` (unsigned).
 
 ## Build
 
@@ -98,6 +100,7 @@ First stable release of the Rust library and egui GUI.
 - Settings as a bundled separate process
 - Chrome (window, tray, Settings labels, GUI notices) in 16 languages
 - macOS app bundles for Apple Silicon and Intel, with notarized GitHub tag artifacts
+- Windows `x86_64` zip with Settings beside the exe (unsigned)
 
 ## License
 

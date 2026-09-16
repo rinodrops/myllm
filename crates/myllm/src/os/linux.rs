@@ -6,10 +6,7 @@ pub fn supports_in_process_hotkeys() -> bool {
     match std::env::var("XDG_SESSION_TYPE") {
         Ok(kind) if kind.eq_ignore_ascii_case("wayland") => false,
         Ok(kind) if kind.eq_ignore_ascii_case("x11") => true,
-        _ => {
-            std::env::var_os("WAYLAND_DISPLAY").is_none()
-                && std::env::var_os("DISPLAY").is_some()
-        }
+        _ => std::env::var_os("WAYLAND_DISPLAY").is_none() && std::env::var_os("DISPLAY").is_some(),
     }
 }
 
