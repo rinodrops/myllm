@@ -1,59 +1,142 @@
-# My LLM
+<p align="center">
+  <img src="docs/screenshots/appicon.png" alt="My LLM" width="128">
+</p>
 
-A personal LLM toolkit. Select text or type into a named task (`polish`, `translate`, …) and get a streamed result in a floating window.
+<p align="center">
+  English | <a href="README.ja.md">日本語</a>
+</p>
 
-This repository holds the Rust library and egui GUI. The frozen Classic apps live in [myllm-classic](https://github.com/rinodrops/myllm-classic) (macOS Swift GUI) and [myllm-cli](https://github.com/rinodrops/myllm-cli) (bash CLI for pipes).
+<p align="center">
+  <strong>Select text or type into a named task and get a streamed result.</strong><br>
+  A personal LLM toolkit with a floating window, tray, and hotkeys.
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/hero.gif" alt="My LLM" width="603">
+</p>
+
+<p align="center">
+  <a href="https://github.com/rinodrops/myllm/releases/latest">
+    <img src="https://img.shields.io/github/v/release/rinodrops/myllm?color=orange&label=Download" alt="Latest Release">
+  </a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-blue" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/Windows-11-blue" alt="Windows 11">
+  <img src="https://img.shields.io/badge/built%20with-Rust-orange" alt="Built with Rust">
+</p>
+
+---
+
+## Features
+
+- Floating result window with streamed output and a task picker
+- Tray / menu bar (macOS and Windows) plus per-task global hotkeys
+- Named tasks from a single `config.toml`
+- Translation with automatic source detection (16 languages)
+- Local [Ollama](https://ollama.com) or cloud OpenAI / Anthropic
+- Settings as a separate window
+- Window, tray, and Settings labels follow the OS language, or a language you choose
 
 ## Requirements
 
-- Rust (stable)
-- A running [Ollama](https://ollama.com) instance, or an OpenAI / Anthropic API key
+| Platform | Requirement |
+| -------- | ----------- |
+| macOS | macOS 13 Ventura or later (Apple Silicon or Intel) |
+| Windows | Windows 11, x86-64 |
 
-## Build
+You also need a running [Ollama](https://ollama.com) instance, or an OpenAI / Anthropic API key.
 
-```bash
-git clone https://github.com/rinodrops/myllm.git
-cd myllm
-just dev
-```
+## Installation
 
-The debug GUI binary is `target/debug/myllm`.
+### macOS
 
-```bash
-# Persistent tray / menu (macOS and Windows)
-target/debug/myllm
+macOS builds are signed and notarized.
 
-# Single-shot from a compositor shortcut, Alfred, or a terminal
-target/debug/myllm --task polish
-target/debug/myllm --task translate --to ja
-```
+1. Download the DMG for your Mac from [Releases](https://github.com/rinodrops/myllm/releases/latest):
+   - **`My-LLM-vX.X.X-darwin-arm64.dmg`** — Apple Silicon
+   - **`My-LLM-vX.X.X-darwin-x86_64.dmg`** — Intel
+2. Open the DMG and drag **My LLM.app** to your Applications folder.
+3. Launch. A menu bar icon appears.
 
-On Wayland, assign those argv invocations in the compositor. In-process global hotkeys are not the primary entry point there.
+### Windows
 
-On macOS, daily use is an unsigned `.app`. Clone [Settings](https://github.com/rinodrops/settings) as a sibling of this repository (`../settings`) first. `just install` builds Settings from this repository's [`schema.toml`](schema.toml) and copies `settings` next to `myllm` in `My LLM.app/Contents/MacOS/`. After install, tray **Settings…** opens that binary against the user config.
+The Windows zip is unsigned.
 
-```bash
-just install   # dist/darwin-arm64/My LLM.app → /Applications
-```
+1. Download **`My-LLM-vX.X.X-windows-x86_64.zip`** from [Releases](https://github.com/rinodrops/myllm/releases/latest).
+2. Extract the zip. Keep **`myllm.exe`** and **`settings.exe`** in the same folder.
+3. Run **`myllm.exe`**. A system tray icon appears.
 
-`just darwin-build-arm64` writes the unsigned Apple Silicon bundle under `dist/`. Intel Macs use `just darwin-build-x86_64`. `just dev` does not copy Settings beside `target/debug/myllm`, so the tray item stays disabled there.
+## Usage
 
-Signed, notarized DMGs and zips:
+Launch the app to keep the tray resident. Pick a configured task from the menu bar or press its hotkey to open the window, put the clipboard into Input, and **Run** automatically. In Settings you can instead use the selected text in the frontmost window. **Open Window** shows the window without grabbing text or running.
 
-```bash
-just darwin-notarize-arm64   # dist/My-LLM-vVERSION-darwin-arm64.dmg
-just darwin-zip-arm64        # notarized .app as a zip
-just darwin-zip-x86_64       # Intel Mac
-```
+### Window
 
-Version tags (`v*`) run `just darwin-zip-*` for both architectures on GitHub Actions. Unsigned `just install` stays the Apple Silicon daily path.
+<p align="center">
+  <img src="docs/screenshots/main-window.png" alt="Main window" width="560">
+</p>
+
+Input is at the top, Output at the bottom. **Run** and **Copy** sit in the bottom bar with the task picker. Responses stream into Output. **Copy** and optional auto-copy write the result to the clipboard.
+
+### Menu bar / system tray
+
+<p align="center">
+  <img src="docs/screenshots/menubar.png" alt="Menu bar" width="260">
+</p>
+
+- **Open Window** — show the window without grabbing text or running
+- Configured tasks, plus **Translate** when translation is enabled — open the window, use the clipboard as Input, and **Run**
+- **Reload Config**, **Open Config Folder**, **Settings…**, **Quit My LLM**
 
 ## Configuration
 
-The config file is `${XDG_CONFIG_HOME:-$HOME/.config}/myllm/config.toml`. A starter file is copied on first launch from [`config/config.toml`](config/config.toml). Window, tray, and Settings labels follow `[general] ui_lang` (`os` or a whichlang language code).
+Open **Settings…** from the tray. A starter `config.toml` is copied on first launch:
 
-This repository owns `schema.toml`; it does not vendor Settings source.
+- macOS: `~/.config/myllm/config.toml`
+- Windows: `%APPDATA%\myllm\config.toml`
+
+The **Language** setting (`ui_lang`) is the window and menu language. It is independent of the translation target.
+
+By default, a task from the tray or a hotkey uses the clipboard as Input. In **General**, turn on **Send ⌘/Control+C to copy the selection** to use the selected text in the frontmost window instead.
+
+<table>
+<tr>
+<td align="center">
+  <img src="docs/screenshots/settings-general.png" alt="Settings — General" width="380"><br>
+  <em>General</em>
+</td>
+<td align="center">
+  <img src="docs/screenshots/settings-providers.png" alt="Settings — Providers" width="380"><br>
+  <em>Providers</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+  <img src="docs/screenshots/settings-tasks.png" alt="Settings — Tasks" width="380"><br>
+  <em>Tasks</em>
+</td>
+<td align="center">
+  <img src="docs/screenshots/settings-translation.png" alt="Settings — Translation" width="380"><br>
+  <em>Translation</em>
+</td>
+</tr>
+</table>
+
+## Release notes
+
+### 1.0.0
+
+First stable release.
+
+- Floating result window, tray, hotkeys, and streamed output
+- Ollama, OpenAI, and Anthropic
+- Translation with TranslateGemma or a custom instruction
+- Settings as a bundled separate process
+- Window, tray, Settings labels, and notices in 16 languages
+- macOS Apple Silicon and Intel DMGs (signed and notarized)
+- Windows `x86_64` zip (unsigned)
 
 ## License
 
 MIT License. See [LICENSE](LICENSE).
+
+To build from source, see [BUILDING.md](BUILDING.md).

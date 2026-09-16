@@ -11,9 +11,11 @@ version := `awk -F'"' '/^version *=/{print $2; exit}' Cargo.toml`
 rust_target_arm64 := "aarch64-apple-darwin"
 rust_target_x86 := "x86_64-apple-darwin"
 icon_src := "crates/myllm/assets/appicon.png"
+win_icon_src := "crates/myllm/assets/appicon-windows.png"
 settings_repo := env_var_or_default("SETTINGS_REPO", "../settings")
 entitlements := "assets/darwin/entitlements.plist"
 dmg_settings := "assets/darwin/dmg_settings.py"
+dmg_background := justfile_directory() + "/assets/darwin/dmg-background.png"
 
 default: help
 
@@ -82,9 +84,58 @@ install: darwin-build-arm64
     rm -rf "/Applications/{{app_name}}.app"
     cp -r "dist/darwin-arm64/{{app_name}}.app" "/Applications/"
 
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+
+win_target := "x86_64-pc-windows-gnu"
+win_target_dir := "/tmp/myllm-win"
+ico_out := "crates/myllm/assets/appicon.ico"
+
+[windows]
+win-build:
+    just _appicon-ico
+    cargo build --release -p myllm
+    mkdir -p dist/windows-x86_64
+    cp "target/release/{{exe_name}}.exe" "dist/windows-x86_64/{{exe_name}}.exe"
+    just _bundle-settings-win dist/windows-x86_64
+    @echo "Windows build: dist/windows-x86_64/{{exe_name}}.exe"
+
+[macos]
+win-build:
+    just _appicon-ico
+    CARGO_TARGET_DIR="{{win_target_dir}}" cargo build --release -p myllm --target {{win_target}}
+    mkdir -p dist/windows-x86_64
+    cp "{{win_target_dir}}/{{win_target}}/release/{{exe_name}}.exe" \
+        "dist/windows-x86_64/{{exe_name}}.exe"
+    just _bundle-settings-win dist/windows-x86_64
+    @echo "Windows build: dist/windows-x86_64/{{exe_name}}.exe"
+
+win-zip: win-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ZIP="dist/{{pkg_name}}-v{{version}}-windows-x86_64.zip"
+    rm -f "${ZIP}"
+    (
+        cd dist/windows-x86_64
+        zip "../$(basename "${ZIP}")" "{{exe_name}}.exe" settings.exe
+    )
+    echo "Zip created: ${ZIP}"
+
+win-release: win-zip
+
+[windows]
+install: win-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DEST="${LOCALAPPDATA}/Programs/{{exe_name}}"
+    mkdir -p "${DEST}"
+    cp "dist/windows-x86_64/{{exe_name}}.exe" "${DEST}/"
+    cp "dist/windows-x86_64/settings.exe" "${DEST}/"
+
 clean:
     cargo clean
-    rm -rf dist
+    rm -rf dist "{{win_target_dir}}"
 
 # ---------------------------------------------------------------------------
 # Internal
@@ -185,6 +236,7 @@ _darwin-create-dmg arch:
     dmgbuild \
         -s "{{dmg_settings}}" \
         -D app="dist/{{arch}}/{{app_name}}.app" \
+        -D background="{{dmg_background}}" \
         "{{app_name}}" \
         "dist/{{pkg_name}}-v{{version}}-{{arch}}.dmg"
 
@@ -207,6 +259,34 @@ _darwin-zip arch:
         "dist/{{arch}}/{{app_name}}.app" \
         "dist/{{pkg_name}}-v{{version}}-{{arch}}.zip"
     @echo "Zip created: dist/{{pkg_name}}-v{{version}}-{{arch}}.zip"
+
+_appicon-ico:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v magick >/dev/null 2>&1 || \
+        { echo "Error: ImageMagick magick not found" >&2; exit 1; }
+    magick "{{win_icon_src}}" -define icon:auto-resize=256,48,32,16 "{{ico_out}}"
+    echo "Generated: {{ico_out}}"
+
+_bundle-settings-win dest_dir:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="$(cd "{{justfile_directory()}}" && pwd)"
+    SETTINGS_DIR="{{settings_repo}}"
+    if [[ "${SETTINGS_DIR}" != /* ]]; then
+        SETTINGS_DIR="${ROOT}/{{settings_repo}}"
+    fi
+    if [ ! -f "${SETTINGS_DIR}/Justfile" ]; then
+        echo "Error: Settings Justfile not found at ${SETTINGS_DIR}." >&2
+        echo "Clone https://github.com/rinodrops/settings as a sibling of this repository." >&2
+        exit 1
+    fi
+    echo "Building Settings from ${ROOT}/schema.toml  (windows-x86_64)"
+    (cd "${SETTINGS_DIR}" && SCHEMA="${ROOT}/schema.toml" just settings-win-build)
+    mkdir -p "{{dest_dir}}"
+    cp "${SETTINGS_DIR}/dist/settings/windows-x86_64/Settings.exe" \
+        "{{dest_dir}}/settings.exe"
+    echo "Bundled Settings: {{dest_dir}}/settings.exe"
 
 _require-dmgbuild:
     #!/usr/bin/env bash
