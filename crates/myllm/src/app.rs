@@ -280,14 +280,30 @@ impl MyApp {
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    let close = ui.add_sized(
-                        [close_w, height],
-                        egui::Button::new(
-                            RichText::new("\u{00D7}").size(18.0).color(Color32::WHITE),
-                        )
-                        .fill(Color32::from_rgb(0xE8, 0x11, 0x23))
-                        .stroke(egui::Stroke::NONE)
-                        .corner_radius(0),
+                    let (close_rect, close) =
+                        ui.allocate_exact_size(egui::vec2(close_w, height), egui::Sense::click());
+                    let dark = ui.visuals().dark_mode;
+                    let (fill, glyph) = if close.is_pointer_button_down_on() {
+                        (Color32::from_rgb(0xC4, 0x2B, 0x1C), Color32::WHITE)
+                    } else if close.hovered() {
+                        (Color32::from_rgb(0xE8, 0x11, 0x23), Color32::WHITE)
+                    } else if dark {
+                        (Color32::TRANSPARENT, Color32::from_rgb(0xCC, 0xCC, 0xCC))
+                    } else {
+                        (Color32::TRANSPARENT, Color32::from_rgb(0x5A, 0x5A, 0x5A))
+                    };
+                    ui.painter()
+                        .rect_filled(close_rect, egui::CornerRadius::ZERO, fill);
+                    let c = close_rect.center();
+                    let d = 5.0;
+                    let stroke = egui::Stroke::new(1.25, glyph);
+                    ui.painter().line_segment(
+                        [egui::pos2(c.x - d, c.y - d), egui::pos2(c.x + d, c.y + d)],
+                        stroke,
+                    );
+                    ui.painter().line_segment(
+                        [egui::pos2(c.x + d, c.y - d), egui::pos2(c.x - d, c.y + d)],
+                        stroke,
                     );
                     if close.clicked() {
                         close_clicked = true;

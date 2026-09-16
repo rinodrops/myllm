@@ -5,6 +5,9 @@ use std::time::Duration;
 use raw_window_handle::{RawWindowHandle, WindowHandle};
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
+use windows_sys::Win32::Graphics::Dwm::{
+    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+};
 use windows_sys::Win32::System::Threading::CreateMutexW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL,
@@ -155,6 +158,13 @@ fn set_tool_style(hwnd: HWND, visible: bool) {
         if visible || IsWindowVisible(hwnd) == 0 {
             ShowWindow(hwnd, SW_SHOWNA);
         }
+        let pref = DWMWCP_ROUND;
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+            (&pref as *const i32).cast(),
+            size_of::<i32>() as u32,
+        );
     }
 }
 
